@@ -901,7 +901,7 @@ input::placeholder { color: var(--placeholder); }
   display: flex;
   gap: 16px;
   justify-content: center;
-  padding: 12px 16px 16px;
+  padding: 12px 16px 2px;
 }
 
 .data-btn {
