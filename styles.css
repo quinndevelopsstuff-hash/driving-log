@@ -1,18 +1,117 @@
-/* Forest Miles palette */
+/* ---- Design Tokens — Light Mode (Forest Miles) ---- */
 :root {
-  --bg:         #f4f9f4;
-  --day:        #52b788;
-  --night:      #0d7377;
-  --accent:     #d8f3dc;
-  --text-dark:  #1b4332;
-  --text-mid:   #2d6a4f;
-  --text-light: #52796f;
-  --border:     #b7dfc4;
-  --card-bg:    #ffffff;
-  --shadow:     0 2px 10px rgba(27, 67, 50, 0.09);
-  --radius:     14px;
-  --radius-sm:  8px;
-  --gap:        16px;
+  /* Layout — never change */
+  --radius:    14px;
+  --radius-sm: 8px;
+  --gap:       16px;
+  --white:     #ffffff;
+
+  /* Palette */
+  --bg:        #f4f9f4;
+  --card-bg:   #ffffff;
+  --day:       #52b788;
+  --night:     #0d7377;
+  --accent:    #d8f3dc;
+  --text-dark: #1b4332;
+  --text-mid:  #2d6a4f;
+  --text-light:#52796f;
+  --border:    #b7dfc4;
+  --shadow:    0 2px 10px rgba(27, 67, 50, 0.09);
+
+  /* Header / install banner background (separate from --text-dark so it
+     can stay dark even when --text-dark inverts in dark mode) */
+  --header-bg: #1b4332;
+
+  /* Form inputs */
+  --input-bg:   #ffffff;
+  --placeholder:#99bfaa;
+
+  /* Sub-label colours */
+  --day-sub-color: #1a6b43;
+
+  /* Inline badges */
+  --day-badge-bg:      rgba(82, 183, 136, 0.18);
+  --day-badge-color:   #1a6b43;
+  --night-badge-bg:    rgba(13, 115, 119, 0.15);
+  --night-badge-color: #075f62;
+
+  /* Error / destructive */
+  --error-bg:    #fee2e2;
+  --error-color: #b91c1c;
+
+  /* Locked milestone badge */
+  --milestone-locked-bg: #eaefea;
+  --milestone-locked-fg: #b5bfb5;
+
+  /* Hero-stat widget */
+  --hero-stat-bg:     rgba(216, 243, 220, 0.10);
+  --hero-stat-border: rgba(216, 243, 220, 0.22);
+
+  /* Select chevron (dark-green arrow for light bg) */
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%232d6a4f' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+
+  /* Confidence badges */
+  --conf-low-bg:     rgba(245, 166, 35, 0.16);
+  --conf-low-color:  #a06a00;
+  --conf-fair-bg:    rgba(163, 200, 75, 0.20);
+  --conf-fair-color: #5a7a10;
+  --conf-good-bg:    rgba(82, 183, 136, 0.18);
+  --conf-good-color: #1a6b43;
+
+  /* Toggle button inactive hover */
+  --toggle-hover-bg: rgba(255, 255, 255, 0.55);
+
+  /* Supervisor rank medals */
+  --rank-gold:   #b8860b;
+  --rank-silver: #708090;
+  --rank-bronze: #8b5e3c;
+}
+
+/* ---- Design Tokens — Dark Mode (Midnight Forest) ---- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:        #0d1f17;
+    --card-bg:   #122b20;
+    --night:     #0d9498;
+    --accent:    #1e3a2a;
+    --text-dark: #e0f5eb;
+    --text-mid:  #7fd4a8;
+    --text-light:#7fd4a8;
+    --border:    #2d5a40;
+    --shadow:    0 2px 12px rgba(0, 0, 0, 0.45);
+
+    --header-bg: #0d1f17;
+
+    --input-bg:   #0d1f17;
+    --placeholder:#3d6b51;
+
+    --day-sub-color: #52b788;
+
+    --day-badge-color:   #7fd4a8;
+    --night-badge-bg:    rgba(13, 148, 152, 0.22);
+    --night-badge-color: #5ec8cb;
+
+    --error-bg:    rgba(185, 28, 28, 0.30);
+    --error-color: #fca5a5;
+
+    --milestone-locked-bg: #1e3a2a;
+    --milestone-locked-fg: #4a7c5f;
+
+    --hero-stat-bg:     rgba(82, 183, 136, 0.08);
+    --hero-stat-border: rgba(82, 183, 136, 0.18);
+
+    /* Select chevron (mint arrow for dark bg) */
+    --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%237fd4a8' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+
+    --conf-low-bg:     rgba(245, 166, 35, 0.18);
+    --conf-low-color:  #f5c842;
+    --conf-fair-bg:    rgba(163, 200, 75, 0.18);
+    --conf-fair-color: #b5d65a;
+    --conf-good-bg:    rgba(82, 183, 136, 0.18);
+    --conf-good-color: #7fd4a8;
+
+    --toggle-hover-bg: rgba(255, 255, 255, 0.08);
+  }
 }
 
 /* Reset */
@@ -29,8 +128,8 @@ body {
 
 /* ---- Header / Hero ---- */
 header {
-  background: var(--text-dark);
-  color: #fff;
+  background: var(--header-bg);
+  color: var(--white);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -66,8 +165,8 @@ header .tagline {
 .hero-stat {
   flex-shrink: 0;
   text-align: center;
-  background: rgba(216, 243, 220, 0.1);
-  border: 1.5px solid rgba(216, 243, 220, 0.22);
+  background: var(--hero-stat-bg);
+  border: 1.5px solid var(--hero-stat-border);
   border-radius: 14px;
   padding: 10px 16px;
   min-width: 78px;
@@ -190,7 +289,7 @@ main {
   margin-bottom: 4px !important;
 }
 
-.day-sub   { color: #1a6b43 !important; }
+.day-sub   { color: var(--day-sub-color) !important; }
 .night-sub { color: var(--night) !important; }
 
 .form-row {
@@ -215,7 +314,7 @@ select {
   border-radius: var(--radius-sm);
   font-size: 0.95rem;
   color: var(--text-dark);
-  background: #fff;
+  background: var(--input-bg);
   outline: none;
   appearance: none;
   -webkit-appearance: none;
@@ -223,7 +322,7 @@ select {
 }
 
 select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%232d6a4f' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-image: var(--select-arrow);
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 32px;
@@ -235,7 +334,7 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(82, 183, 136, 0.18);
 }
 
-input::placeholder { color: #99bfaa; }
+input::placeholder { color: var(--placeholder); }
 
 .duration-value {
   background: var(--accent);
@@ -256,8 +355,8 @@ input::placeholder { color: #99bfaa; }
 
 .split-error {
   font-size: 0.78rem;
-  color: #b91c1c;
-  background: #fee2e2;
+  color: var(--error-color);
+  background: var(--error-bg);
   border-radius: 6px;
   padding: 6px 10px;
   margin-top: 6px;
@@ -286,7 +385,7 @@ input::placeholder { color: #99bfaa; }
 .btn-primary {
   flex: 1;
   background: var(--day);
-  color: #fff;
+  color: var(--white);
 }
 
 .btn-primary:hover { opacity: 0.9; }
@@ -310,8 +409,8 @@ input::placeholder { color: #99bfaa; }
 }
 
 .btn-delete {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: var(--error-bg);
+  color: var(--error-color);
 }
 
 /* ---- Session History ---- */
@@ -391,13 +490,13 @@ input::placeholder { color: #99bfaa; }
 }
 
 .day-badge {
-  background: rgba(82, 183, 136, 0.18);
-  color: #1a6b43;
+  background: var(--day-badge-bg);
+  color: var(--day-badge-color);
 }
 
 .night-badge {
-  background: rgba(13, 115, 119, 0.15);
-  color: #075f62;
+  background: var(--night-badge-bg);
+  color: var(--night-badge-color);
 }
 
 .total-badge {
@@ -426,9 +525,9 @@ input::placeholder { color: #99bfaa; }
   text-align: center;
 }
 
-.supervisor-rank.gold   { color: #b8860b; }
-.supervisor-rank.silver { color: #708090; }
-.supervisor-rank.bronze { color: #8b5e3c; }
+.supervisor-rank.gold   { color: var(--rank-gold); }
+.supervisor-rank.silver { color: var(--rank-silver); }
+.supervisor-rank.bronze { color: var(--rank-bronze); }
 
 .supervisor-info { flex: 1; min-width: 0; }
 
@@ -502,18 +601,18 @@ input::placeholder { color: #99bfaa; }
 }
 
 .milestone-badge.locked {
-  background: #eaefea;
-  color: #b5bfb5;
+  background: var(--milestone-locked-bg);
+  color: var(--milestone-locked-fg);
 }
 
 .milestone-badge.earned.day-milestone {
   background: var(--day);
-  color: #fff;
+  color: var(--white);
 }
 
 .milestone-badge.earned.night-milestone {
   background: var(--night);
-  color: #fff;
+  color: var(--white);
 }
 
 .m-icon {
@@ -618,9 +717,9 @@ input::placeholder { color: #99bfaa; }
   line-height: 1.5;
 }
 
-.confidence-low  { background: rgba(245, 166, 35, 0.16);  color: #a06a00; }
-.confidence-fair { background: rgba(163, 200, 75, 0.20);  color: #5a7a10; }
-.confidence-good { background: rgba(82,  183, 136, 0.18); color: #1a6b43; }
+.confidence-low  { background: var(--conf-low-bg);  color: var(--conf-low-color); }
+.confidence-fair { background: var(--conf-fair-bg); color: var(--conf-fair-color); }
+.confidence-good { background: var(--conf-good-bg); color: var(--conf-good-color); }
 
 /* ---- Progress Chart ---- */
 #progress-chart {
@@ -671,11 +770,11 @@ input::placeholder { color: #99bfaa; }
 
 .toggle-btn.active {
   background: var(--day);
-  color: #fff;
+  color: var(--white);
 }
 
 .toggle-btn:not(.active):hover {
-  background: rgba(255, 255, 255, 0.55);
+  background: var(--toggle-hover-bg);
 }
 
 /* ---- History Groups ---- */
@@ -734,8 +833,8 @@ input::placeholder { color: #99bfaa; }
   left: 0;
   right: 0;
   z-index: 200;
-  background: var(--text-dark);
-  color: #fff;
+  background: var(--header-bg);
+  color: var(--white);
   box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.28);
 }
 
@@ -779,7 +878,7 @@ input::placeholder { color: #99bfaa; }
 
 .install-btn {
   background: var(--day);
-  color: #fff;
+  color: var(--white);
   padding: 9px 18px;
   font-size: 0.85rem;
 }
@@ -788,7 +887,7 @@ input::placeholder { color: #99bfaa; }
 
 .dismiss-btn {
   background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  color: var(--white);
   border: 1px solid rgba(255, 255, 255, 0.22);
   padding: 8px 11px;
   font-size: 0.85rem;

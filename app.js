@@ -437,11 +437,12 @@ function renderChart() {
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
 
-  const DAY_C   = '#52b788';
-  const NIGHT_C = '#0d7377';
-  const GRID_C  = '#d8f3dc';
-  const LABEL_C = '#52796f';
-  const TEXT_C  = '#1b4332';
+  const cs      = getComputedStyle(document.documentElement);
+  const DAY_C   = cs.getPropertyValue('--day').trim();
+  const NIGHT_C = cs.getPropertyValue('--night').trim();
+  const GRID_C  = cs.getPropertyValue('--accent').trim();
+  const LABEL_C = cs.getPropertyValue('--text-light').trim();
+  const TEXT_C  = cs.getPropertyValue('--text-dark').trim();
   const MON     = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
   const pts = buildChartData();
@@ -755,6 +756,7 @@ loadSessions();
 initForm();
 renderAll();
 window.addEventListener('resize', renderChart);
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderChart);
 
 // ---- Service Worker registration ----
 
