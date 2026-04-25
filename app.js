@@ -11,6 +11,31 @@ const MILESTONES = [
   { pct: 100, label: 'Goal reached!'  },
 ];
 
+const DRIVING_TIPS = [
+  'Keep your eyes scanning 10–15 seconds ahead of your vehicle.',
+  'Check your mirrors every 5–8 seconds while driving.',
+  'Always signal at least 3 seconds before turning or changing lanes.',
+  'Maintain a 3-second following distance in good conditions — more in rain.',
+  'Adjust your mirrors before every drive, not after you start moving.',
+  'Slow down and increase following distance in wet or foggy conditions.',
+  'Never drive when tired — fatigue impairs reaction time as much as alcohol.',
+  'Look through the turn, not at it — your car follows your eyes.',
+  'Come to a complete stop at stop signs — a rolling stop is still a violation.',
+  'Use the SMOG method: Signal, Mirror, Over-the-shoulder, Go.',
+  'Brake early and gently — it gives drivers behind you more reaction time.',
+  'Keep both hands on the wheel in the 9 and 3 o\'clock position.',
+  'Night driving requires more following distance — headlights only cover so far.',
+  'In a skid, steer in the direction you want to go, don\'t brake suddenly.',
+  'Always come to a stop before looking both ways at a stop sign.',
+  'Scan intersections even on green — not everyone stops for red.',
+  'Avoid driving in another driver\'s blind spot on the highway.',
+  'When merging onto a highway, match the speed of traffic before entering.',
+  'Park parallel to the curb within 12 inches when parallel parking.',
+  'After driving in heavy rain, lightly tap your brakes to dry them out.',
+];
+
+let currentTipIndex = Math.floor(Math.random() * DRIVING_TIPS.length);
+
 const MILESTONE_NOTIFICATIONS = [
   { type: 'day',   threshold: DAY_TARGET_MINS   * 0.25, key: 'day-25',    msg: "You've logged 25% of your day hours! 🌱" },
   { type: 'day',   threshold: DAY_TARGET_MINS   * 0.50, key: 'day-50',    msg: 'Halfway through your day hours! ☀️' },
@@ -675,6 +700,17 @@ function renderSupervisorStats() {
     </div>`).join('');
 }
 
+function renderTip() {
+  document.getElementById('tip-text').textContent = DRIVING_TIPS[currentTipIndex];
+}
+
+function refreshTip() {
+  let next;
+  do { next = Math.floor(Math.random() * DRIVING_TIPS.length); } while (next === currentTipIndex);
+  currentTipIndex = next;
+  renderTip();
+}
+
 function renderAll() {
   renderDashboard();
   renderStreak();
@@ -1051,6 +1087,7 @@ function updateAppBadge() {
 loadSessions();
 initForm();
 renderAll();
+renderTip();
 updateAppBadge();
 setTimeout(initNotifications, 5000);
 

@@ -230,6 +230,65 @@ header .tagline {
   animation: flame-pulse 1.5s ease-in-out infinite;
 }
 
+/* ---- Tip of the session ---- */
+.tip-card {
+  margin: 12px 0 4px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #d8f3dc;
+}
+
+.tip-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #2d6a4f;
+  margin-bottom: 7px;
+}
+
+.tip-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.tip-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+
+.tip-text {
+  flex: 1;
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #1b4332;
+}
+
+.tip-refresh-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 0 0 4px;
+  color: #2d6a4f;
+  opacity: 0.65;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+
+.tip-refresh-btn:hover { opacity: 1; }
+
+@media (prefers-color-scheme: dark) {
+  .tip-card      { background: #1e3a2a; }
+  .tip-label     { color: #52b788; }
+  .tip-text      { color: #c8e6d4; }
+  .tip-refresh-btn { color: #52b788; }
+}
+
 /* ---- Main layout ---- */
 main {
   max-width: 600px;
