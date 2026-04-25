@@ -894,6 +894,11 @@ function initNotifications() {
   }
 }
 
+// Vibration API — Android only; iOS silently ignores navigator.vibrate
+function triggerHaptic(pattern) {
+  if (navigator.vibrate) navigator.vibrate(pattern);
+}
+
 function checkMilestoneNotifications() {
   const { day, night } = getTotals();
   const notified = JSON.parse(localStorage.getItem('notifiedMilestones') || '[]');
@@ -905,7 +910,12 @@ function checkMilestoneNotifications() {
       showNotification('Drive Log', m.msg, 'milestone');
       notified.push(m.key);
       changed = true;
-      if (m.key === 'day-100' || m.key === 'night-100') updateAppBadge();
+      if (m.key === 'day-100' || m.key === 'night-100') {
+        updateAppBadge();
+        triggerHaptic([100, 50, 100, 50, 300]);
+      } else {
+        triggerHaptic([200, 100, 200]);
+      }
     }
   }
 
