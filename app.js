@@ -4,6 +4,13 @@ const STORAGE_KEY      = 'drivingLogSessions';
 const DAY_TARGET_MINS  = 40 * 60;
 const NIGHT_TARGET_MINS = 10 * 60;
 
+const MILESTONES = [
+  { pct: 25,  label: 'First steps!'   },
+  { pct: 50,  label: 'Halfway there!' },
+  { pct: 75,  label: 'Almost done!'   },
+  { pct: 100, label: 'Goal reached!'  },
+];
+
 let sessions     = [];
 let editingId    = null;
 let barsAnimated = false;
@@ -66,6 +73,11 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function fmtDateObj(d) {
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
 // ---- Computed stats ----
 
 function getTotals() {
@@ -86,6 +98,45 @@ function getSupervisorStats() {
   return Object.entries(map)
     .map(([name, { day, night }]) => ({ name, day, night, total: day + night }))
     .sort((a, b) => b.total - a.total);
+}
+
+// ---- ETA calculation ----
+
+function getETAData() {
+  if (!sessions.length) return null;
+
+  const { day, night } = getTotals();
+  const sortedDates  = sessions.map(s => s.date).sort();
+  const firstDate    = new Date(sortedDates[0] + 'T12:00:00');
+  const today        = new Date();
+  today.setHours(12, 0, 0, 0);
+
+  const elapsedDays  = (today - firstDate) / 86400000;
+  const elapsedWeeks = elapsedDays / 7;
+
+  if (elapsedDays < 7) return null;
+
+  const dayPerWeek   = day   / elapsedWeeks;
+  const nightPerWeek = night / elapsedWeeks;
+
+  function addDays(base, n) {
+    const d = new Date(base);
+    d.setDate(d.getDate() + Math.round(n));
+    return d;
+  }
+
+  const remDay   = Math.max(0, DAY_TARGET_MINS   - day);
+  const remNight = Math.max(0, NIGHT_TARGET_MINS - night);
+
+  const dayEta = remDay === 0
+    ? 'achieved'
+    : dayPerWeek > 0 ? addDays(today, (remDay   / dayPerWeek)   * 7) : null;
+
+  const nightEta = remNight === 0
+    ? 'achieved'
+    : nightPerWeek > 0 ? addDays(today, (remNight / nightPerWeek) * 7) : null;
+
+  return { dayEta, nightEta, elapsedWeeks, dayPerWeek, nightPerWeek };
 }
 
 // ---- Render: Dashboard ----
@@ -122,6 +173,68 @@ function renderDashboard() {
     dayBar.style.width   = dayPct + '%';
     nightBar.style.width = nightPct + '%';
   }
+}
+
+// ---- Render: Milestone Badges ----
+
+function badgeHTML({ pct, label }, currentPct, typeClass) {
+  if (currentPct >= pct) {
+    return `<div class="milestone-badge earned ${typeClass}">` +
+      `<span class="m-icon">&#9733;</span>` +
+      `<span class="m-pct">${pct}%</span>` +
+      `<span class="m-label">${label}</span>` +
+      `</div>`;
+  }
+  return `<div class="milestone-badge locked">` +
+    `<span class="m-icon">&#9711;</span>` +
+    `<span class="m-pct">${pct}%</span>` +
+    `</div>`;
+}
+
+function renderMilestoneBadges() {
+  const { day, night } = getTotals();
+  const dayPct   = (day   / DAY_TARGET_MINS)   * 100;
+  const nightPct = (night / NIGHT_TARGET_MINS) * 100;
+
+  document.getElementById('day-milestones').innerHTML =
+    MILESTONES.map(m => badgeHTML(m, dayPct,   'day-milestone')).join('');
+  document.getElementById('night-milestones').innerHTML =
+    MILESTONES.map(m => badgeHTML(m, nightPct, 'night-milestone')).join('');
+}
+
+// ---- Render: ETA ----
+
+function renderETA() {
+  const el   = document.getElementById('eta-content');
+  const data = getETAData();
+
+  if (!data || (!data.dayEta && !data.nightEta)) {
+    el.innerHTML = '<p class="eta-insufficient">Log more sessions to see an estimate.</p>';
+    return;
+  }
+
+  const { dayEta, nightEta, elapsedWeeks, dayPerWeek, nightPerWeek } = data;
+
+  function etaCell(eta) {
+    if (eta === 'achieved') return '<span class="eta-achieved">Achieved!</span>';
+    if (!eta)               return '<span style="font-style:italic;color:var(--text-light)">No data yet</span>';
+    return fmtDateObj(eta);
+  }
+
+  const dayRow = `<div class="eta-row">` +
+    `<span class="eta-type day-type">Day</span>` +
+    `<span class="eta-date">${etaCell(dayEta)}</span>` +
+    (dayPerWeek > 0 ? `<span class="eta-rate">avg ${fmtHours(dayPerWeek)}h/wk</span>` : '') +
+    `</div>`;
+
+  const nightRow = `<div class="eta-row">` +
+    `<span class="eta-type night-type">Night</span>` +
+    `<span class="eta-date">${etaCell(nightEta)}</span>` +
+    (nightPerWeek > 0 ? `<span class="eta-rate">avg ${fmtHours(nightPerWeek)}h/wk</span>` : '') +
+    `</div>`;
+
+  el.innerHTML = dayRow + nightRow +
+    `<div class="eta-basis">Based on ${elapsedWeeks.toFixed(1)} weeks of driving data</div>`;
 }
 
 // ---- Render: Session History ----
@@ -193,6 +306,8 @@ function renderSupervisorStats() {
 
 function renderAll() {
   renderDashboard();
+  renderMilestoneBadges();
+  renderETA();
   renderHistory();
   renderSupervisorStats();
 }

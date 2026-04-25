@@ -456,6 +456,149 @@ input::placeholder { color: #99bfaa; }
   padding: 22px 0;
 }
 
+/* ---- Milestone Badges ---- */
+.milestones-wrap {
+  margin-top: 6px;    /* progress-group:last-child no longer fires, its 16px margin + this 6px = 22px gap */
+  padding-top: 14px;
+  border-top: 1px solid var(--accent);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.milestones-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.milestones-type {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  min-width: 34px;
+  flex-shrink: 0;
+}
+
+.milestones-type.day-type   { color: var(--day); }
+.milestones-type.night-type { color: var(--night); }
+
+.milestones-badges {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+}
+
+.milestone-badge {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 8px;
+  padding: 7px 3px 6px;
+  text-align: center;
+  min-width: 0;
+}
+
+.milestone-badge.locked {
+  background: #eaefea;
+  color: #b5bfb5;
+}
+
+.milestone-badge.earned.day-milestone {
+  background: var(--day);
+  color: #fff;
+}
+
+.milestone-badge.earned.night-milestone {
+  background: var(--night);
+  color: #fff;
+}
+
+.m-icon {
+  font-size: 0.82rem;
+  line-height: 1;
+  margin-bottom: 3px;
+}
+
+.m-pct {
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.m-label {
+  font-size: 0.57rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 3px;
+  opacity: 0.9;
+}
+
+/* ---- ETA ---- */
+.eta-wrap {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--accent);
+}
+
+.eta-heading {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-mid);
+  margin-bottom: 9px;
+}
+
+.eta-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 5px;
+  flex-wrap: wrap;
+}
+
+.eta-type {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-width: 38px;
+  flex-shrink: 0;
+}
+
+.eta-type.day-type   { color: var(--day); }
+.eta-type.night-type { color: var(--night); }
+
+.eta-date {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  flex: 1;
+}
+
+.eta-achieved { color: var(--day); }
+
+.eta-rate {
+  font-size: 0.72rem;
+  color: var(--text-light);
+  white-space: nowrap;
+}
+
+.eta-basis {
+  font-size: 0.71rem;
+  color: var(--text-light);
+  margin-top: 7px;
+}
+
+.eta-insufficient {
+  font-size: 0.82rem;
+  color: var(--text-light);
+  font-style: italic;
+}
+
 /* ---- Desktop ---- */
 @media (min-width: 640px) {
   .hero-inner { padding: 20px 24px 22px; }
