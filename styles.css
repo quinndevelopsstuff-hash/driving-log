@@ -557,9 +557,7 @@ input::placeholder { color: var(--placeholder); }
 
 /* ---- Milestone Badges ---- */
 .milestones-wrap {
-  margin-top: 6px;    /* progress-group:last-child no longer fires, its 16px margin + this 6px = 22px gap */
-  padding-top: 14px;
-  border-top: 1px solid var(--accent);
+  padding-top: 6px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -636,19 +634,8 @@ input::placeholder { color: var(--placeholder); }
 }
 
 /* ---- ETA ---- */
-.eta-wrap {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--accent);
-}
-
-.eta-heading {
-  font-size: 0.68rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: var(--text-mid);
-  margin-bottom: 9px;
+#body-estimated {
+  padding-top: 6px;
 }
 
 .eta-row {
@@ -900,6 +887,81 @@ input::placeholder { color: var(--placeholder); }
 
 .dismiss-btn:hover { background: rgba(255, 255, 255, 0.22); }
 
+/* ---- Section collapsible toggles ---- */
+
+/* Shared chevron style — used by all toggles (section, sub-section, history groups) */
+.section-chevron {
+  color: var(--text-mid);
+  flex-shrink: 0;
+  transition: transform 0.25s ease;
+}
+
+/* Card-level h2 toggle */
+.section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  padding-bottom: 10px;
+  margin-bottom: 14px;
+  border-bottom: 2px solid var(--accent);
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.section-toggle:hover { background: var(--accent); }
+
+.section-toggle h2 {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+  flex: 1;
+}
+
+.section-toggle.collapsed .section-chevron {
+  transform: rotate(-180deg);
+}
+
+/* Sub-section toggle (inside a card, below a section-body) */
+.sub-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  margin-top: 14px;
+  padding: 8px 2px;
+  border-top: 1px solid var(--accent);
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.sub-section-toggle:hover { background: var(--accent); }
+
+.sub-section-toggle.collapsed .section-chevron {
+  transform: rotate(-180deg);
+}
+
+.sub-section-label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-mid);
+}
+
+/* Collapsible body shared by all toggles */
+.section-body {
+  overflow: hidden;
+  max-height: 3000px;
+  transition: max-height 0.4s ease-in-out;
+}
+
+.section-body.collapsed { max-height: 0; }
+
 /* ---- History collapsible ---- */
 .history-section-toggle {
   display: flex;
@@ -909,13 +971,7 @@ input::placeholder { color: var(--placeholder); }
   user-select: none;
 }
 
-.history-chevron {
-  color: var(--text-mid);
-  flex-shrink: 0;
-  transition: transform 0.25s ease;
-}
-
-.history-section-toggle.collapsed .history-chevron {
+.history-section-toggle.collapsed .section-chevron {
   transform: rotate(-180deg);
 }
 
@@ -936,13 +992,7 @@ input::placeholder { color: var(--placeholder); }
   flex-shrink: 0;
 }
 
-.group-chevron {
-  color: var(--text-mid);
-  flex-shrink: 0;
-  transition: transform 0.25s ease;
-}
-
-.group-header.collapsed .group-chevron {
+.group-header.collapsed .section-chevron {
   transform: rotate(-180deg);
 }
 

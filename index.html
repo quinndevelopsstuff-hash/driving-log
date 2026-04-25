@@ -33,51 +33,71 @@
 
     <!-- Progress Dashboard -->
     <section class="card" id="dashboard">
-      <h2>Progress</h2>
 
-      <div class="progress-group">
-        <div class="progress-label">
-          <span class="label-text">Daytime</span>
-          <span class="label-stat"><span id="day-logged">0.0</span>h &nbsp;/&nbsp; 40h</span>
-        </div>
-        <div class="progress-track">
-          <div class="progress-fill day-fill" id="day-bar" style="width:0%"></div>
-        </div>
-        <div class="progress-sublabel">
-          <span id="day-pct">0%</span>
-          <span><span id="day-remaining">40.0</span>h remaining</span>
-        </div>
+      <div class="section-toggle" id="toggle-progress">
+        <h2>Progress</h2>
+        <svg class="section-chevron" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+          <path d="M4 7l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </div>
+      <div class="section-body" id="body-progress">
+        <div class="progress-group">
+          <div class="progress-label">
+            <span class="label-text">Daytime</span>
+            <span class="label-stat"><span id="day-logged">0.0</span>h &nbsp;/&nbsp; 40h</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill day-fill" id="day-bar" style="width:0%"></div>
+          </div>
+          <div class="progress-sublabel">
+            <span id="day-pct">0%</span>
+            <span><span id="day-remaining">40.0</span>h remaining</span>
+          </div>
+        </div>
 
-      <div class="progress-group">
-        <div class="progress-label">
-          <span class="label-text">Nighttime</span>
-          <span class="label-stat"><span id="night-logged">0.0</span>h &nbsp;/&nbsp; 10h</span>
-        </div>
-        <div class="progress-track">
-          <div class="progress-fill night-fill" id="night-bar" style="width:0%"></div>
-        </div>
-        <div class="progress-sublabel">
-          <span id="night-pct">0%</span>
-          <span><span id="night-remaining">10.0</span>h remaining</span>
+        <div class="progress-group">
+          <div class="progress-label">
+            <span class="label-text">Nighttime</span>
+            <span class="label-stat"><span id="night-logged">0.0</span>h &nbsp;/&nbsp; 10h</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill night-fill" id="night-bar" style="width:0%"></div>
+          </div>
+          <div class="progress-sublabel">
+            <span id="night-pct">0%</span>
+            <span><span id="night-remaining">10.0</span>h remaining</span>
+          </div>
         </div>
       </div>
 
       <!-- Milestone Badges -->
-      <div class="milestones-wrap">
-        <div class="milestones-row">
-          <span class="milestones-type day-type">Day</span>
-          <div class="milestones-badges" id="day-milestones"></div>
-        </div>
-        <div class="milestones-row">
-          <span class="milestones-type night-type">Night</span>
-          <div class="milestones-badges" id="night-milestones"></div>
+      <div class="sub-section-toggle" id="toggle-badges">
+        <span class="sub-section-label">Milestone Badges</span>
+        <svg class="section-chevron" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+          <path d="M4 7l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="section-body" id="body-badges">
+        <div class="milestones-wrap">
+          <div class="milestones-row">
+            <span class="milestones-type day-type">Day</span>
+            <div class="milestones-badges" id="day-milestones"></div>
+          </div>
+          <div class="milestones-row">
+            <span class="milestones-type night-type">Night</span>
+            <div class="milestones-badges" id="night-milestones"></div>
+          </div>
         </div>
       </div>
 
       <!-- Estimated Completion -->
-      <div class="eta-wrap">
-        <p class="eta-heading">Estimated Completion</p>
+      <div class="sub-section-toggle" id="toggle-estimated">
+        <span class="sub-section-label">Estimated Completion</span>
+        <svg class="section-chevron" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+          <path d="M4 7l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="section-body" id="body-estimated">
         <div id="eta-content"></div>
       </div>
 
@@ -85,8 +105,15 @@
 
     <!-- Progress Chart -->
     <section class="card" id="chart-section">
-      <h2>Progress Over Time</h2>
-      <canvas id="progress-chart"></canvas>
+      <div class="section-toggle" id="toggle-chart">
+        <h2>Progress Over Time</h2>
+        <svg class="section-chevron" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+          <path d="M4 7l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="section-body" id="body-chart">
+        <canvas id="progress-chart"></canvas>
+      </div>
     </section>
 
     <!-- Session Logging Form -->
@@ -167,7 +194,7 @@
       <div class="history-header">
         <div class="history-section-toggle" id="history-section-toggle">
           <h2>Session History</h2>
-          <svg class="history-chevron" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+          <svg class="section-chevron" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
             <path d="M4 7l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
@@ -182,8 +209,15 @@
 
     <!-- Supervisor Leaderboard -->
     <section class="card">
-      <h2>Supervisor Leaderboard</h2>
-      <div id="supervisor-list"></div>
+      <div class="section-toggle" id="toggle-leaderboard">
+        <h2>Supervisor Leaderboard</h2>
+        <svg class="section-chevron" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+          <path d="M4 7l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="section-body" id="body-leaderboard">
+        <div id="supervisor-list"></div>
+      </div>
     </section>
 
     <!-- Export / Import -->

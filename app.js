@@ -409,7 +409,7 @@ function renderHistory() {
     const nightMins  = gs.reduce((t, s) => t + s.nightMinutes, 0);
     const isCollapsed = collapsedGroups.has(key);
     const chevronSVG =
-      `<svg class="group-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">` +
+      `<svg class="section-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">` +
         `<path d="M3 6l5 5 5-5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>` +
       `</svg>`;
     html +=
@@ -784,13 +784,50 @@ renderAll();
 window.addEventListener('resize', renderChart);
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderChart);
 
+// ---- Section collapsible toggles ----
+
+function initSectionCollapse(toggleId, bodyId, storageKey, onExpand) {
+  const toggle = document.getElementById(toggleId);
+  const body   = document.getElementById(bodyId);
+  if (!toggle || !body) return;
+
+  if (localStorage.getItem(storageKey) === '1') {
+    toggle.classList.add('collapsed');
+    body.classList.add('collapsed');
+  }
+
+  toggle.addEventListener('click', () => {
+    const nowCollapsed = body.classList.toggle('collapsed');
+    toggle.classList.toggle('collapsed', nowCollapsed);
+    if (nowCollapsed) localStorage.setItem(storageKey, '1');
+    else {
+      localStorage.removeItem(storageKey);
+      if (onExpand) onExpand();
+    }
+  });
+}
+
+initSectionCollapse('toggle-progress',    'body-progress',    'collapse_progress');
+initSectionCollapse('toggle-badges',      'body-badges',      'collapse_badges');
+initSectionCollapse('toggle-estimated',   'body-estimated',   'collapse_estimated');
+initSectionCollapse('toggle-chart',       'body-chart',       'collapse_chart', renderChart);
+initSectionCollapse('toggle-leaderboard', 'body-leaderboard', 'collapse_leaderboard');
+
 // ---- History collapsible ----
 
+// Restore history collapsed state from localStorage
+if (localStorage.getItem('collapse_history') === '1') {
+  document.getElementById('history-section-toggle').classList.add('collapsed');
+  document.getElementById('session-list').classList.add('collapsed');
+}
+
 document.getElementById('history-section-toggle').addEventListener('click', () => {
-  const toggle      = document.getElementById('history-section-toggle');
-  const list        = document.getElementById('session-list');
+  const toggle       = document.getElementById('history-section-toggle');
+  const list         = document.getElementById('session-list');
   const nowCollapsed = list.classList.toggle('collapsed');
   toggle.classList.toggle('collapsed', nowCollapsed);
+  if (nowCollapsed) localStorage.setItem('collapse_history', '1');
+  else localStorage.removeItem('collapse_history');
 });
 
 // Event delegation — handles group header clicks regardless of re-renders
