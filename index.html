@@ -239,11 +239,12 @@
       <input type="file" id="import-file-input" accept=".json" hidden>
     </div>
 
-    <div class="data-actions">
-      <button class="data-btn" id="test-notif-btn">Test Notifications</button>
-    </div>
-
   </main>
+
+  <div id="delete-toast" hidden>
+    <span class="toast-msg">Session deleted</span>
+    <button class="toast-undo-btn" onclick="undoDelete()">Undo</button>
+  </div>
 
   <div id="update-banner" class="install-banner" hidden>
     <div class="install-banner-inner">

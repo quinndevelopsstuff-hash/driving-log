@@ -27,6 +27,8 @@ let editingId       = null;
 let barsAnimated    = false;
 let historyView     = 'all';
 let collapsedGroups = new Set();
+let pendingDelete     = null;
+let pendingDeleteTimer = null;
 
 // ---- Persistence ----
 
@@ -759,11 +761,50 @@ function editSession(id) {
 }
 
 function deleteSession(id) {
-  if (!confirm('Delete this session? This cannot be undone.')) return;
+  if (!confirm('Delete this session?')) return;
+
+  // A toast is already showing — commit that delete before starting a new one
+  if (pendingDelete !== null) commitPendingDelete();
+
+  pendingDelete = sessions.find(s => s.id === id);
   sessions = sessions.filter(s => s.id !== id);
-  saveSessions();
   renderAll();
   updateAppBadge();
+
+  showDeleteToast();
+  pendingDeleteTimer = setTimeout(commitPendingDelete, 5000);
+}
+
+function commitPendingDelete() {
+  if (pendingDelete === null) return;
+  saveSessions();
+  pendingDelete = null;
+  clearTimeout(pendingDeleteTimer);
+  pendingDeleteTimer = null;
+  hideDeleteToast();
+}
+
+function undoDelete() {
+  if (pendingDelete === null) return;
+  clearTimeout(pendingDeleteTimer);
+  pendingDeleteTimer = null;
+  sessions.push(pendingDelete);
+  pendingDelete = null;
+  renderAll();
+  updateAppBadge();
+  hideDeleteToast();
+}
+
+function showDeleteToast() {
+  const toast = document.getElementById('delete-toast');
+  toast.hidden = false;
+  requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('toast-visible')));
+}
+
+function hideDeleteToast() {
+  const toast = document.getElementById('delete-toast');
+  toast.classList.remove('toast-visible');
+  toast.addEventListener('transitionend', () => { toast.hidden = true; }, { once: true });
 }
 
 function cancelEdit() {
@@ -970,24 +1011,6 @@ document.getElementById('session-list').addEventListener('click', e => {
   header.classList.toggle('collapsed', nowCollapsed);
   if (nowCollapsed) collapsedGroups.add(key);
   else collapsedGroups.delete(key);
-});
-
-// ---- Test Notifications button ----
-
-document.getElementById('test-notif-btn').addEventListener('click', async () => {
-  if (!('Notification' in window)) {
-    alert('Notifications are not supported in this browser.');
-    return;
-  }
-  if (Notification.permission === 'denied') {
-    alert('Notifications are blocked. Enable them in your browser or device settings and try again.');
-    return;
-  }
-  if (Notification.permission === 'default') {
-    const result = await Notification.requestPermission();
-    if (result !== 'granted') return;
-  }
-  showNotification('Drive Log — Test 🔔', 'Notifications are working correctly!', 'test');
 });
 
 // ---- Service Worker registration ----
