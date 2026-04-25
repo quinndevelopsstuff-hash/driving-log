@@ -1135,9 +1135,115 @@ input::placeholder { color: var(--placeholder); }
 .export-btn { background: #52b788; }
 .import-btn { background: #0d7377; }
 .print-btn  { background: #1b4332; }
+.qr-btn     { background: #2d6a4f; }
 
 @media (prefers-color-scheme: dark) {
   .import-btn { background: #0d9498; }
+}
+
+/* ---- QR Export modal ---- */
+#qr-modal-overlay:not([hidden]) {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.qr-modal-card {
+  background: var(--card-bg);
+  border-radius: 20px;
+  padding: 24px 20px;
+  max-width: 320px;
+  width: 100%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.qr-modal-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1b4332;
+  margin: 0;
+}
+
+.qr-modal-subtitle {
+  font-size: 0.82rem;
+  color: var(--text-mid);
+  text-align: center;
+  margin: 0;
+  line-height: 1.45;
+}
+
+.qr-canvas-wrap {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qr-too-large {
+  font-size: 0.875rem;
+  color: var(--text-mid);
+  text-align: center;
+  line-height: 1.5;
+  padding: 4px 0;
+}
+
+.qr-too-large p { margin: 0; }
+
+.qr-inline-export-btn {
+  background: none;
+  border: none;
+  color: #52b788;
+  font-weight: 700;
+  font-size: inherit;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.qr-modal-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.qr-copy-btn,
+.qr-close-btn {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 99px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.qr-copy-btn {
+  background: #52b788;
+  color: #ffffff;
+}
+
+.qr-close-btn {
+  background: var(--accent);
+  color: var(--text-dark);
+}
+
+.qr-copy-btn:hover,
+.qr-close-btn:hover { opacity: 0.8; }
+
+@media (prefers-color-scheme: dark) {
+  .qr-modal-title { color: var(--text-dark); }
 }
 
 /* ---- Undo-delete toast ---- */

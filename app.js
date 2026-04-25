@@ -1406,6 +1406,55 @@ function printLog() {
 
 document.getElementById('print-btn').addEventListener('click', printLog);
 
+// ---- QR Export ----
+
+function showQRModal() {
+  const json       = JSON.stringify(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'));
+  const overlay    = document.getElementById('qr-modal-overlay');
+  const canvasWrap = document.getElementById('qr-canvas-wrap');
+  const tooLarge   = document.getElementById('qr-too-large');
+  const copyBtn    = document.getElementById('qr-copy-btn');
+
+  canvasWrap.innerHTML = '';
+  overlay.removeAttribute('hidden');
+
+  if (json.length > 2000) {
+    canvasWrap.hidden = true;
+    tooLarge.hidden   = false;
+    copyBtn.hidden    = true;
+  } else {
+    canvasWrap.hidden = false;
+    tooLarge.hidden   = true;
+    copyBtn.hidden    = false;
+    new QRCode(canvasWrap, {
+      text:         json,
+      width:        256,
+      height:       256,
+      colorDark:    '#000000',
+      colorLight:   '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M,
+    });
+  }
+}
+
+function closeQRModal() {
+  document.getElementById('qr-modal-overlay').setAttribute('hidden', '');
+}
+
+function copyQRJSON() {
+  const json = JSON.stringify(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'), null, 2);
+  navigator.clipboard.writeText(json).then(() => {
+    const btn  = document.getElementById('qr-copy-btn');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  }).catch(() => {
+    alert('Could not copy to clipboard — please use the Export button instead.');
+  });
+}
+
+document.getElementById('qr-btn').addEventListener('click', showQRModal);
+
 // ---- Export / Import ----
 
 document.getElementById('export-btn').addEventListener('click', () => {

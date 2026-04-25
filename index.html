@@ -263,6 +263,21 @@
         </svg>
         Import
       </button>
+      <button class="data-btn qr-btn" id="qr-btn">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <rect x="2" y="2" width="6" height="6" rx="1" stroke="#fff" stroke-width="1.5" fill="none"/>
+          <rect x="3.5" y="3.5" width="3" height="3" rx="0.5" fill="#fff"/>
+          <rect x="12" y="2" width="6" height="6" rx="1" stroke="#fff" stroke-width="1.5" fill="none"/>
+          <rect x="13.5" y="3.5" width="3" height="3" rx="0.5" fill="#fff"/>
+          <rect x="2" y="12" width="6" height="6" rx="1" stroke="#fff" stroke-width="1.5" fill="none"/>
+          <rect x="3.5" y="13.5" width="3" height="3" rx="0.5" fill="#fff"/>
+          <rect x="12" y="12" width="2" height="2" rx="0.3" fill="#fff"/>
+          <rect x="15" y="12" width="2" height="2" rx="0.3" fill="#fff"/>
+          <rect x="12" y="15" width="2" height="2" rx="0.3" fill="#fff"/>
+          <rect x="15" y="15" width="2" height="2" rx="0.3" fill="#fff"/>
+        </svg>
+        QR
+      </button>
       <input type="file" id="import-file-input" accept=".json" hidden>
     </div>
 
@@ -294,6 +309,23 @@
     </div>
   </div>
 
+  <!-- QR export modal -->
+  <div id="qr-modal-overlay" hidden onclick="if(event.target===this)closeQRModal()">
+    <div class="qr-modal-card">
+      <h3 class="qr-modal-title">Scan to Import</h3>
+      <p class="qr-modal-subtitle">Have another device scan this to import your session data</p>
+      <div id="qr-canvas-wrap" class="qr-canvas-wrap"></div>
+      <div id="qr-too-large" class="qr-too-large" hidden>
+        <p>Too many sessions for a QR code &mdash; use the <button class="qr-inline-export-btn" onclick="document.getElementById('export-btn').click();closeQRModal()">Export</button> button instead to save a JSON file.</p>
+      </div>
+      <div class="qr-modal-actions">
+        <button class="qr-copy-btn" id="qr-copy-btn" onclick="copyQRJSON()">Copy JSON</button>
+        <button class="qr-close-btn" onclick="closeQRModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
