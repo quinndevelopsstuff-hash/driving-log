@@ -1169,6 +1169,148 @@ window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
 });
 
+// ---- Print Log ----
+
+function printLog() {
+  const { day, night } = getTotals();
+  const total      = day + night;
+  const overallPct = Math.min(100, Math.round((total / (DAY_TARGET_MINS + NIGHT_TARGET_MINS)) * 100));
+  const eta        = calculateEstimatedCompletion();
+  const now        = new Date();
+  const dateStr    = fmtDateObj(now);
+  const datetimeStr = dateStr + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  function etaStr() {
+    if (!eta) return 'Not enough data';
+    const later = eta.dayEta === 'achieved' && eta.nightEta === 'achieved' ? 'achieved' :
+      [eta.dayEta, eta.nightEta]
+        .filter(d => d && d !== 'achieved')
+        .sort((a, b) => b - a)[0];
+    if (!later) return 'Goal achieved!';
+    if (later === 'achieved') return 'Goal achieved!';
+    return fmtDateObj(later);
+  }
+
+  const sorted = [...sessions].sort((a, b) =>
+    a.date !== b.date ? b.date.localeCompare(a.date) : b.startTime.localeCompare(a.startTime)
+  );
+
+  const supervisorStats = getSupervisorStats();
+
+  const sessionRows = sorted.map(s => `
+    <tr>
+      <td>${fmtDate(s.date)}</td>
+      <td>${fmtTime(s.startTime)}</td>
+      <td>${fmtTime(s.endTime)}</td>
+      <td>${fmtHours(s.dayMinutes)}h</td>
+      <td>${fmtHours(s.nightMinutes)}h</td>
+      <td>${s.supervisor || '—'}</td>
+      <td>${s.location  || '—'}</td>
+      <td>${s.weather}</td>
+    </tr>`).join('');
+
+  const supervisorRows = supervisorStats.map(s => `
+    <tr>
+      <td>${s.name}</td>
+      <td>${fmtHours(s.day)}h</td>
+      <td>${fmtHours(s.night)}h</td>
+      <td>${fmtHours(s.total)}h</td>
+    </tr>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Drive Log — Official Hours Summary</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Georgia, 'Times New Roman', serif; font-size: 12pt; color: #000; background: #fff; padding: 24pt; }
+    h1 { font-size: 18pt; margin-bottom: 4pt; }
+    .date { font-size: 11pt; color: #444; margin-bottom: 20pt; }
+    h2 { font-size: 13pt; margin: 20pt 0 8pt; border-bottom: 1px solid #000; padding-bottom: 4pt; }
+    .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10pt; margin-bottom: 4pt; }
+    .summary-item { border: 1px solid #ccc; padding: 8pt 10pt; }
+    .summary-label { font-size: 9pt; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
+    .summary-value { font-size: 15pt; font-weight: bold; margin-top: 2pt; }
+    table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+    th { background: #f0f0f0; border: 1px solid #aaa; padding: 5pt 7pt; text-align: left; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.03em; }
+    td { border: 1px solid #ccc; padding: 5pt 7pt; vertical-align: top; }
+    tr:nth-child(even) td { background: #fafafa; }
+    footer { margin-top: 24pt; padding-top: 8pt; border-top: 1px solid #ccc; font-size: 9pt; color: #666; }
+    @media print {
+      body { padding: 0; }
+      @page { margin: 18mm 14mm; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Drive Log &mdash; Official Hours Summary</h1>
+  <p class="date">${dateStr}</p>
+
+  <h2>Summary</h2>
+  <div class="summary-grid">
+    <div class="summary-item">
+      <div class="summary-label">Day Hours</div>
+      <div class="summary-value">${fmtHours(day)}h</div>
+      <div class="summary-label">of 40h goal (${Math.round((day / DAY_TARGET_MINS) * 100)}%)</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">Night Hours</div>
+      <div class="summary-value">${fmtHours(night)}h</div>
+      <div class="summary-label">of 10h goal (${Math.round((night / NIGHT_TARGET_MINS) * 100)}%)</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">Total Hours</div>
+      <div class="summary-value">${fmtHours(total)}h</div>
+      <div class="summary-label">of 50h goal (${overallPct}%)</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">Sessions Logged</div>
+      <div class="summary-value">${sessions.length}</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">Day Remaining</div>
+      <div class="summary-value">${fmtHours(Math.max(0, DAY_TARGET_MINS - day))}h</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">Est. Completion</div>
+      <div class="summary-value" style="font-size:11pt">${etaStr()}</div>
+    </div>
+  </div>
+
+  <h2>Session History (${sorted.length} sessions)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th><th>Start</th><th>End</th>
+        <th>Day hrs</th><th>Night hrs</th>
+        <th>Supervisor</th><th>Location</th><th>Weather</th>
+      </tr>
+    </thead>
+    <tbody>${sessionRows}</tbody>
+  </table>
+
+  <h2>Supervisor Summary</h2>
+  <table>
+    <thead>
+      <tr><th>Supervisor</th><th>Day hrs</th><th>Night hrs</th><th>Total hrs</th></tr>
+    </thead>
+    <tbody>${supervisorRows}</tbody>
+  </table>
+
+  <footer>Generated by Drive Log PWA &nbsp;&mdash;&nbsp; ${datetimeStr}</footer>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { alert('Please allow pop-ups to use Print Log.'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.addEventListener('load', () => win.print());
+}
+
+document.getElementById('print-btn').addEventListener('click', printLog);
+
 // ---- Export / Import ----
 
 document.getElementById('export-btn').addEventListener('click', () => {
