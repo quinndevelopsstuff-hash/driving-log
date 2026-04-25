@@ -1097,6 +1097,10 @@ function hideUpdateToast() {
   toast.addEventListener('transitionend', () => { toast.hidden = true; }, { once: true });
 }
 
+// Debugging only — call window.testUpdateToast() in the browser console to verify
+// the toast UI works without needing a real service worker update. Can be removed later.
+window.testUpdateToast = showUpdateToast;
+
 if ('serviceWorker' in navigator) {
   // Reload when the new SW takes control — guarded so first-install doesn't trigger a reload
   if (navigator.serviceWorker.controller) {
@@ -1115,11 +1119,18 @@ if ('serviceWorker' in navigator) {
 
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing;
+
+          // Attach statechange immediately — before the worker can advance to installed
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
               showUpdateToast();
             }
           });
+
+          // Guard against the (rare) case where the worker reached installed before we attached
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateToast();
+          }
         });
       })
       .catch(() => {});
