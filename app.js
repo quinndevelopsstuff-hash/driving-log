@@ -972,6 +972,24 @@ document.getElementById('session-list').addEventListener('click', e => {
   else collapsedGroups.delete(key);
 });
 
+// ---- Test Notifications button ----
+
+document.getElementById('test-notif-btn').addEventListener('click', async () => {
+  if (!('Notification' in window)) {
+    alert('Notifications are not supported in this browser.');
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    alert('Notifications are blocked. Enable them in your browser or device settings and try again.');
+    return;
+  }
+  if (Notification.permission === 'default') {
+    const result = await Notification.requestPermission();
+    if (result !== 'granted') return;
+  }
+  showNotification('Drive Log — Test 🔔', 'Notifications are working correctly!', 'test');
+});
+
 // ---- Service Worker registration ----
 
 if ('serviceWorker' in navigator) {
