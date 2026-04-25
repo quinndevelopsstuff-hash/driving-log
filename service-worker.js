@@ -22,7 +22,12 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
   );
-  self.skipWaiting();
+  // Do NOT call skipWaiting() here — the app prompts the user before activating a new version
+});
+
+// Activate immediately when the app explicitly requests it (user clicked "Reload")
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 // Remove old caches on activate

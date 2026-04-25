@@ -976,9 +976,38 @@ document.getElementById('session-list').addEventListener('click', e => {
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+    navigator.serviceWorker.register('./service-worker.js')
+      .then(registration => {
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          newWorker.addEventListener('statechange', () => {
+            // Only prompt if there is already an active SW (i.e. this is an update, not first install)
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              document.getElementById('update-banner').hidden = false;
+            }
+          });
+        });
+      })
+      .catch(() => {});
   });
 }
+
+document.getElementById('update-btn').addEventListener('click', () => {
+  document.getElementById('update-banner').hidden = true;
+  navigator.serviceWorker.ready.then(registration => {
+    if (registration.waiting) {
+      // Reload once the new SW takes control
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.location.reload();
+      });
+      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+    }
+  });
+});
+
+document.getElementById('dismiss-update-btn').addEventListener('click', () => {
+  document.getElementById('update-banner').hidden = true;
+});
 
 // ---- Install banner ----
 
