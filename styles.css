@@ -1085,3 +1085,22 @@ input::placeholder { color: var(--placeholder); }
 }
 
 .toast-undo-btn:hover { opacity: 0.75; }
+
+/* ---- Confetti ---- */
+
+@keyframes confetti-fall {
+  0%   { transform: translateY(-16px) translateX(0)          rotate(0deg);   opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translateY(105vh)  translateX(var(--drift)) rotate(var(--rotation)); opacity: 0; }
+}
+
+.confetti-particle {
+  position: fixed;
+  top: 0;
+  border-radius: 2px;
+  pointer-events: none;
+  animation-name: confetti-fall;
+  animation-timing-function: ease-in;
+  animation-fill-mode: both;
+  z-index: 9999;
+}

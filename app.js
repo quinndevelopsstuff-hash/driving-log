@@ -899,6 +899,45 @@ function triggerHaptic(pattern) {
   if (navigator.vibrate) navigator.vibrate(pattern);
 }
 
+// ---- Confetti ----
+
+const DAY_CONFETTI_COLORS   = ['#52b788', '#7fd4a8', '#d8f3dc', '#ffffff'];
+const NIGHT_CONFETTI_COLORS = ['#0d9498', '#38b6bb', '#7fd4a8', '#ffffff'];
+
+function launchConfetti(colors) {
+  const count = 80;
+  const particles = [];
+
+  for (let i = 0; i < count; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-particle';
+
+    const size     = 6 + Math.random() * 6;                       // 6–12px
+    const x        = Math.random() * 100;                          // % across screen
+    const duration = 1500 + Math.random() * 1500;                  // 1.5–3s
+    const drift    = (Math.random() - 0.5) * 200;                  // -100px to +100px
+    const rotation = Math.random() * 720 - 360;                    // -360 to +360deg
+    const delay    = Math.random() * 500;                          // 0–0.5s
+    const color    = colors[Math.floor(Math.random() * colors.length)];
+
+    el.style.cssText = [
+      `width:${size}px`,
+      `height:${size}px`,
+      `left:${x}vw`,
+      `background:${color}`,
+      `animation-duration:${duration}ms`,
+      `animation-delay:${delay}ms`,
+      `--drift:${drift}px`,
+      `--rotation:${rotation}deg`,
+    ].join(';');
+
+    document.body.appendChild(el);
+    particles.push(el);
+  }
+
+  setTimeout(() => particles.forEach(p => p.remove()), 4000);
+}
+
 function checkMilestoneNotifications() {
   const { day, night } = getTotals();
   const notified = JSON.parse(localStorage.getItem('notifiedMilestones') || '[]');
@@ -910,9 +949,14 @@ function checkMilestoneNotifications() {
       showNotification('Drive Log', m.msg, 'milestone');
       notified.push(m.key);
       changed = true;
-      if (m.key === 'day-100' || m.key === 'night-100') {
+      if (m.key === 'day-100') {
         updateAppBadge();
         triggerHaptic([100, 50, 100, 50, 300]);
+        launchConfetti(DAY_CONFETTI_COLORS);
+      } else if (m.key === 'night-100') {
+        updateAppBadge();
+        triggerHaptic([100, 50, 100, 50, 300]);
+        launchConfetti(NIGHT_CONFETTI_COLORS);
       } else {
         triggerHaptic([200, 100, 200]);
       }
