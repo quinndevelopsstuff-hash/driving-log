@@ -246,16 +246,11 @@
     <button class="toast-undo-btn" onclick="undoDelete()">Undo</button>
   </div>
 
-  <div id="update-banner" class="install-banner" hidden>
-    <div class="install-banner-inner">
-      <div class="install-banner-text">
-        <strong>Update available</strong>
-        <span>Reload to get the latest version.</span>
-      </div>
-      <div class="install-banner-actions">
-        <button class="btn install-btn" id="update-btn">Reload</button>
-        <button class="btn dismiss-btn" id="dismiss-update-btn" aria-label="Dismiss">&#x2715;</button>
-      </div>
+  <div id="update-toast" hidden>
+    <span class="toast-msg">A new version is available!</span>
+    <div class="toast-actions">
+      <button class="toast-update-btn" id="update-toast-btn">Update Now</button>
+      <button class="toast-dismiss-btn" id="dismiss-update-toast-btn" aria-label="Dismiss">&#x2715;</button>
     </div>
   </div>
 

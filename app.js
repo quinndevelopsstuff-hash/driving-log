@@ -1085,16 +1085,39 @@ document.getElementById('session-list').addEventListener('click', e => {
 
 // ---- Service Worker registration ----
 
+function showUpdateToast() {
+  const toast = document.getElementById('update-toast');
+  toast.hidden = false;
+  requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('toast-visible')));
+}
+
+function hideUpdateToast() {
+  const toast = document.getElementById('update-toast');
+  toast.classList.remove('toast-visible');
+  toast.addEventListener('transitionend', () => { toast.hidden = true; }, { once: true });
+}
+
 if ('serviceWorker' in navigator) {
+  // Reload when the new SW takes control — guarded so first-install doesn't trigger a reload
+  if (navigator.serviceWorker.controller) {
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      window.location.reload();
+    });
+  }
+
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./service-worker.js')
       .then(registration => {
+        // Already waiting from a previous background install (e.g. hard-refresh over a pending update)
+        if (registration.waiting && navigator.serviceWorker.controller) {
+          showUpdateToast();
+        }
+
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing;
           newWorker.addEventListener('statechange', () => {
-            // Only prompt if there is already an active SW (i.e. this is an update, not first install)
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              document.getElementById('update-banner').hidden = false;
+              showUpdateToast();
             }
           });
         });
@@ -1103,22 +1126,15 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-document.getElementById('update-btn').addEventListener('click', () => {
-  document.getElementById('update-banner').hidden = true;
+document.getElementById('update-toast-btn').addEventListener('click', () => {
+  hideUpdateToast();
   navigator.serviceWorker.ready.then(registration => {
-    if (registration.waiting) {
-      // Reload once the new SW takes control
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        window.location.reload();
-      });
-      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-    }
+    if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+    // controllerchange listener (registered above) handles the reload
   });
 });
 
-document.getElementById('dismiss-update-btn').addEventListener('click', () => {
-  document.getElementById('update-banner').hidden = true;
-});
+document.getElementById('dismiss-update-toast-btn').addEventListener('click', hideUpdateToast);
 
 // ---- Install banner ----
 
