@@ -14,6 +14,7 @@ const MILESTONES = [
 let sessions     = [];
 let editingId    = null;
 let barsAnimated = false;
+let historyView  = 'all';
 
 // ---- Persistence ----
 
@@ -139,6 +140,31 @@ function getETAData() {
   return { dayEta, nightEta, elapsedWeeks, dayPerWeek, nightPerWeek };
 }
 
+// ---- History grouping helpers ----
+
+function setHistoryView(v) {
+  historyView = v;
+  renderHistory();
+}
+
+function weekKey(dateStr) {
+  const d   = new Date(dateStr + 'T12:00:00');
+  const dow = d.getDay();
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+  return mon.toISOString().slice(0, 10); // Monday of the week
+}
+
+function groupLabel(key, view) {
+  if (view === 'week') {
+    return 'Week of ' + fmtDateObj(new Date(key + 'T12:00:00'));
+  }
+  const [y, m] = key.split('-').map(Number);
+  const LONG = ['January','February','March','April','May','June',
+                 'July','August','September','October','November','December'];
+  return LONG[m - 1] + ' ' + y;
+}
+
 // ---- Render: Dashboard ----
 
 function renderDashboard() {
@@ -239,8 +265,38 @@ function renderETA() {
 
 // ---- Render: Session History ----
 
+function sessionItemHTML(s) {
+  const totalMins = s.dayMinutes + s.nightMinutes;
+  return `
+    <div class="session-item">
+      <div class="session-header">
+        <span class="session-date">${fmtDate(s.date)}</span>
+        <span class="session-duration">${fmtDuration(totalMins)}</span>
+      </div>
+      <div class="session-time-range">${fmtTime(s.startTime)} &ndash; ${fmtTime(s.endTime)}</div>
+      <div class="session-split">
+        <span class="badge day-badge">Day: ${fmtDuration(s.dayMinutes)}</span>
+        <span class="badge night-badge">Night: ${fmtDuration(s.nightMinutes)}</span>
+      </div>
+      <div class="session-details">
+        <span>${s.supervisor || '—'}</span>
+        <span>${s.location  || '—'}</span>
+        <span class="weather-tag">${s.weather}</span>
+      </div>
+      <div class="session-actions">
+        <button class="btn btn-sm btn-edit"   onclick="editSession('${s.id}')">Edit</button>
+        <button class="btn btn-sm btn-delete" onclick="deleteSession('${s.id}')">Delete</button>
+      </div>
+    </div>`;
+}
+
 function renderHistory() {
   const el = document.getElementById('session-list');
+
+  document.querySelectorAll('.view-toggle .toggle-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.view === historyView);
+  });
+
   if (!sessions.length) {
     el.innerHTML = '<p class="empty-state">No sessions logged yet. Add your first drive above!</p>';
     return;
@@ -251,30 +307,175 @@ function renderHistory() {
     return b.startTime.localeCompare(a.startTime);
   });
 
-  el.innerHTML = sorted.map(s => {
-    const totalMins = s.dayMinutes + s.nightMinutes;
-    return `
-      <div class="session-item">
-        <div class="session-header">
-          <span class="session-date">${fmtDate(s.date)}</span>
-          <span class="session-duration">${fmtDuration(totalMins)}</span>
-        </div>
-        <div class="session-time-range">${fmtTime(s.startTime)} &ndash; ${fmtTime(s.endTime)}</div>
-        <div class="session-split">
-          <span class="badge day-badge">Day: ${fmtDuration(s.dayMinutes)}</span>
-          <span class="badge night-badge">Night: ${fmtDuration(s.nightMinutes)}</span>
-        </div>
-        <div class="session-details">
-          <span>${s.supervisor || '—'}</span>
-          <span>${s.location  || '—'}</span>
-          <span class="weather-tag">${s.weather}</span>
-        </div>
-        <div class="session-actions">
-          <button class="btn btn-sm btn-edit"   onclick="editSession('${s.id}')">Edit</button>
-          <button class="btn btn-sm btn-delete" onclick="deleteSession('${s.id}')">Delete</button>
-        </div>
-      </div>`;
-  }).join('');
+  if (historyView === 'all') {
+    el.innerHTML = sorted.map(sessionItemHTML).join('');
+    return;
+  }
+
+  const groups = new Map();
+  for (const s of sorted) {
+    const key = historyView === 'week' ? weekKey(s.date) : s.date.slice(0, 7);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(s);
+  }
+
+  let html = '';
+  for (const [key, gs] of groups) {
+    const dayMins   = gs.reduce((t, s) => t + s.dayMinutes,   0);
+    const nightMins = gs.reduce((t, s) => t + s.nightMinutes, 0);
+    html +=
+      `<div class="group-header">` +
+        `<span class="group-label">${groupLabel(key, historyView)}</span>` +
+        `<div class="group-subtotals">` +
+          `<span class="badge day-badge">${fmtHours(dayMins)}h day</span>` +
+          `<span class="badge night-badge">${fmtHours(nightMins)}h night</span>` +
+          `<span class="badge total-badge">${fmtHours(dayMins + nightMins)}h total</span>` +
+        `</div>` +
+      `</div>`;
+    html += gs.map(sessionItemHTML).join('');
+  }
+  el.innerHTML = html;
+}
+
+// ---- Chart data + render ----
+
+function buildChartData() {
+  if (!sessions.length) return null;
+  const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date));
+  const dayMap = {}, nightMap = {};
+  for (const s of sorted) {
+    dayMap[s.date]   = (dayMap[s.date]   || 0) + s.dayMinutes;
+    nightMap[s.date] = (nightMap[s.date] || 0) + s.nightMinutes;
+  }
+  const dates = [...new Set(sorted.map(s => s.date))];
+  let cd = 0, cn = 0;
+  return dates.map(d => {
+    cd += (dayMap[d]   || 0) / 60;
+    cn += (nightMap[d] || 0) / 60;
+    return { date: d, day: cd, night: cn };
+  });
+}
+
+function renderChart() {
+  const canvas = document.getElementById('progress-chart');
+  if (!canvas) return;
+  const W = canvas.offsetWidth;
+  const H = canvas.offsetHeight;
+  if (!W || !H) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const DAY_C   = '#52b788';
+  const NIGHT_C = '#0d7377';
+  const GRID_C  = '#d8f3dc';
+  const LABEL_C = '#52796f';
+  const TEXT_C  = '#1b4332';
+  const MON     = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  const pts = buildChartData();
+
+  if (!pts) {
+    ctx.fillStyle = LABEL_C; ctx.font = '13px system-ui,sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Log sessions to see your progress chart.', W / 2, H / 2);
+    return;
+  }
+
+  const n  = pts.length;
+  const ml = 40, mr = 12, mt = 22, mb = 28;
+  const cW = W - ml - mr, cH = H - mt - mb;
+
+  // Scales
+  const maxData = Math.max(...pts.map(p => Math.max(p.day, p.night)));
+  const maxY    = Math.max(DAY_TARGET_MINS / 60, Math.ceil(maxData + 2));
+
+  const dateMs  = pts.map(p => new Date(p.date + 'T12:00:00').getTime());
+  const ms0     = dateMs[0];
+  const rawSpan = dateMs[n - 1] - ms0;
+  const span    = rawSpan > 0 ? rawSpan + rawSpan * 0.04 : 86400000;
+
+  const xOf = ms => ml + ((ms - ms0) / span) * cW;
+  const yOf = h  => mt + cH - (h / maxY) * cH;
+
+  // Y-axis grid + labels
+  const yStep = maxY > 30 ? 10 : maxY > 15 ? 5 : maxY > 6 ? 2 : 1;
+  ctx.font = '10px system-ui,sans-serif'; ctx.textBaseline = 'middle';
+  for (let h = 0; h <= maxY; h += yStep) {
+    const y = yOf(h);
+    ctx.strokeStyle = GRID_C; ctx.lineWidth = 1; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(ml, y); ctx.lineTo(ml + cW, y); ctx.stroke();
+    ctx.fillStyle = LABEL_C; ctx.textAlign = 'right';
+    ctx.fillText(h + 'h', ml - 5, y);
+  }
+
+  // Dashed goal lines
+  function goalLine(targetH, color) {
+    ctx.save();
+    ctx.strokeStyle = color; ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.38;  ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(ml, yOf(targetH)); ctx.lineTo(ml + cW, yOf(targetH)); ctx.stroke();
+    ctx.restore();
+  }
+  goalLine(40, DAY_C);
+  goalLine(10, NIGHT_C);
+
+  // X-axis date labels (up to 5)
+  ctx.fillStyle = LABEL_C; ctx.font = '10px system-ui,sans-serif';
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'center';
+  const xStep  = Math.max(1, Math.ceil(n / 5));
+  const shownX = new Set();
+  for (let i = 0; i < n; i += xStep) shownX.add(i);
+  shownX.add(n - 1);
+  for (const i of shownX) {
+    const [, mo, d] = pts[i].date.split('-').map(Number);
+    ctx.fillText(`${MON[mo - 1]} ${d}`, xOf(dateMs[i]), H - 8);
+  }
+
+  // Area + line + dots per series
+  function drawSeries(key, color, fillAlpha) {
+    ctx.setLineDash([]);
+    // Filled area
+    ctx.beginPath();
+    ctx.moveTo(xOf(dateMs[0]), yOf(0));
+    for (let i = 0; i < n; i++) ctx.lineTo(xOf(dateMs[i]), yOf(pts[i][key]));
+    ctx.lineTo(xOf(dateMs[n - 1]), yOf(0));
+    ctx.closePath();
+    ctx.fillStyle = color; ctx.globalAlpha = fillAlpha; ctx.fill(); ctx.globalAlpha = 1;
+    // Line
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      i === 0 ? ctx.moveTo(xOf(dateMs[i]), yOf(pts[i][key]))
+              : ctx.lineTo(xOf(dateMs[i]), yOf(pts[i][key]));
+    }
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke();
+    // Dots
+    ctx.fillStyle = color;
+    for (let i = 0; i < n; i++) {
+      ctx.beginPath();
+      ctx.arc(xOf(dateMs[i]), yOf(pts[i][key]), 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  drawSeries('night', NIGHT_C, 0.10);
+  drawSeries('day',   DAY_C,   0.13);
+
+  // Legend
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.font = '11px system-ui,sans-serif';
+  function legend(x, y, color, label) {
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = TEXT_C;
+    ctx.fillText(label, x + 8, y);
+  }
+  legend(ml + 2,  mt - 10, DAY_C,   'Day hours');
+  legend(ml + 74, mt - 10, NIGHT_C, 'Night hours');
 }
 
 // ---- Render: Supervisor Leaderboard ----
@@ -308,6 +509,7 @@ function renderAll() {
   renderDashboard();
   renderMilestoneBadges();
   renderETA();
+  renderChart();
   renderHistory();
   renderSupervisorStats();
 }
@@ -484,3 +686,4 @@ function resetForm() {
 loadSessions();
 initForm();
 renderAll();
+window.addEventListener('resize', renderChart);

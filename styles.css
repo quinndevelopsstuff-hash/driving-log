@@ -599,6 +599,90 @@ input::placeholder { color: #99bfaa; }
   font-style: italic;
 }
 
+/* ---- Progress Chart ---- */
+#progress-chart {
+  display: block;
+  width: 100%;
+  height: 200px;
+  border-radius: 6px;
+}
+
+/* ---- History View Toggle ---- */
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--accent);
+}
+
+.history-header h2 {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.view-toggle {
+  display: flex;
+  gap: 3px;
+  background: var(--accent);
+  border-radius: 8px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.toggle-btn {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-mid);
+  line-height: 1.4;
+  transition: background 0.15s, color 0.15s;
+}
+
+.toggle-btn.active {
+  background: var(--day);
+  color: #fff;
+}
+
+.toggle-btn:not(.active):hover {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+/* ---- History Groups ---- */
+.group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 8px 11px;
+  margin-bottom: 8px;
+  margin-top: 2px;
+}
+
+.group-header:first-child { margin-top: 0; }
+
+.group-label {
+  font-size: 0.83rem;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.group-subtotals {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
 /* ---- Desktop ---- */
 @media (min-width: 640px) {
   .hero-inner { padding: 20px 24px 22px; }
@@ -617,4 +701,5 @@ input::placeholder { color: #99bfaa; }
   .card h2 { font-size: 1.1rem; }
 
   .progress-track { height: 18px; }
+  #progress-chart  { height: 240px; }
 }

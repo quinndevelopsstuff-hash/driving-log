@@ -76,6 +76,12 @@
 
     </section>
 
+    <!-- Progress Chart -->
+    <section class="card" id="chart-section">
+      <h2>Progress Over Time</h2>
+      <canvas id="progress-chart"></canvas>
+    </section>
+
     <!-- Session Logging Form -->
     <section class="card" id="session-form">
       <h2 id="form-title">Log Session</h2>
@@ -151,7 +157,14 @@
 
     <!-- Session History -->
     <section class="card">
-      <h2>Session History</h2>
+      <div class="history-header">
+        <h2>Session History</h2>
+        <div class="view-toggle" role="group" aria-label="View mode">
+          <button class="toggle-btn active" data-view="all"   onclick="setHistoryView('all')">All</button>
+          <button class="toggle-btn"        data-view="week"  onclick="setHistoryView('week')">Week</button>
+          <button class="toggle-btn"        data-view="month" onclick="setHistoryView('month')">Month</button>
+        </div>
+      </div>
       <div id="session-list"></div>
     </section>
 
