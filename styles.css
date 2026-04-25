@@ -27,24 +27,68 @@ body {
   padding-bottom: 40px;
 }
 
-/* ---- Header ---- */
+/* ---- Header / Hero ---- */
 header {
   background: var(--text-dark);
   color: #fff;
-  padding: 20px var(--gap);
-  text-align: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.28);
 }
+
+.hero-inner {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 16px var(--gap) 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.hero-left { flex: 1; min-width: 0; }
 
 header h1 {
-  font-size: 1.45rem;
+  font-size: 1.25rem;
   font-weight: 800;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.4px;
+  line-height: 1.2;
 }
 
-header .subtitle {
-  font-size: 0.82rem;
-  opacity: 0.72;
+header .tagline {
+  font-size: 0.74rem;
+  opacity: 0.58;
   margin-top: 4px;
+  line-height: 1.35;
+}
+
+.hero-stat {
+  flex-shrink: 0;
+  text-align: center;
+  background: rgba(216, 243, 220, 0.1);
+  border: 1.5px solid rgba(216, 243, 220, 0.22);
+  border-radius: 14px;
+  padding: 10px 16px;
+  min-width: 78px;
+}
+
+.hero-pct {
+  display: block;
+  font-size: 2.1rem;
+  font-weight: 900;
+  color: var(--day);
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+.hero-pct-label {
+  display: block;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  opacity: 0.58;
+  margin-top: 5px;
 }
 
 /* ---- Main layout ---- */
@@ -75,28 +119,6 @@ main {
 }
 
 /* ---- Dashboard ---- */
-.overall-row {
-  margin-bottom: 18px;
-}
-
-.overall-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--accent);
-  color: var(--text-dark);
-  border-radius: 20px;
-  padding: 7px 16px;
-  font-size: 0.88rem;
-  font-weight: 600;
-}
-
-.overall-badge span {
-  font-size: 1.2rem;
-  font-weight: 800;
-  color: var(--day);
-}
-
 .progress-group {
   margin-bottom: 16px;
 }
@@ -134,7 +156,7 @@ main {
 .progress-fill {
   height: 100%;
   border-radius: 8px;
-  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.8s ease-out;
   min-width: 0;
 }
 
@@ -436,9 +458,9 @@ input::placeholder { color: #99bfaa; }
 
 /* ---- Desktop ---- */
 @media (min-width: 640px) {
-  header { padding: 28px 24px; }
-  header h1 { font-size: 1.7rem; }
-  header .subtitle { font-size: 0.88rem; }
+  .hero-inner { padding: 20px 24px 22px; }
+  header h1   { font-size: 1.45rem; }
+  .hero-pct   { font-size: 2.4rem; }
 
   main {
     padding: 24px 16px;

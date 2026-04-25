@@ -3,14 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1b4332">
   <title>Driving Hours Tracker</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
   <header>
-    <h1>Driving Hours Tracker</h1>
-    <p class="subtitle">Learner's permit progress — 50 hours total</p>
+    <div class="hero-inner">
+      <div class="hero-left">
+        <h1>Driving Hours</h1>
+        <p class="tagline">Learner&rsquo;s permit tracker &mdash; 50h goal</p>
+      </div>
+      <div class="hero-stat">
+        <span class="hero-pct" id="overall-pct">0%</span>
+        <span class="hero-pct-label">complete</span>
+      </div>
+    </div>
   </header>
 
   <main>
@@ -18,12 +27,6 @@
     <!-- Progress Dashboard -->
     <section class="card" id="dashboard">
       <h2>Progress</h2>
-
-      <div class="overall-row">
-        <div class="overall-badge">
-          <span id="overall-pct">0%</span> complete
-        </div>
-      </div>
 
       <div class="progress-group">
         <div class="progress-label">

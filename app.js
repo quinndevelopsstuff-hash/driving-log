@@ -4,8 +4,9 @@ const STORAGE_KEY      = 'drivingLogSessions';
 const DAY_TARGET_MINS  = 40 * 60;
 const NIGHT_TARGET_MINS = 10 * 60;
 
-let sessions  = [];
-let editingId = null;
+let sessions     = [];
+let editingId    = null;
+let barsAnimated = false;
 
 // ---- Persistence ----
 
@@ -97,17 +98,30 @@ function renderDashboard() {
   const nightPct   = Math.min(100, (night / NIGHT_TARGET_MINS) * 100);
   const overallPct = Math.min(100, (total / (DAY_TARGET_MINS + NIGHT_TARGET_MINS)) * 100);
 
-  document.getElementById('day-bar').style.width    = dayPct + '%';
   document.getElementById('day-logged').textContent    = fmtHours(day);
   document.getElementById('day-remaining').textContent = fmtHours(Math.max(0, DAY_TARGET_MINS - day));
   document.getElementById('day-pct').textContent       = Math.round(dayPct) + '%';
 
-  document.getElementById('night-bar').style.width      = nightPct + '%';
   document.getElementById('night-logged').textContent    = fmtHours(night);
   document.getElementById('night-remaining').textContent = fmtHours(Math.max(0, NIGHT_TARGET_MINS - night));
   document.getElementById('night-pct').textContent       = Math.round(nightPct) + '%';
 
   document.getElementById('overall-pct').textContent = Math.round(overallPct) + '%';
+
+  const dayBar   = document.getElementById('day-bar');
+  const nightBar = document.getElementById('night-bar');
+
+  if (!barsAnimated) {
+    barsAnimated = true;
+    // Defer past first paint so the browser commits width:0% before animating
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      dayBar.style.width   = dayPct + '%';
+      nightBar.style.width = nightPct + '%';
+    }));
+  } else {
+    dayBar.style.width   = dayPct + '%';
+    nightBar.style.width = nightPct + '%';
+  }
 }
 
 // ---- Render: Session History ----
