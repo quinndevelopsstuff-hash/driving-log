@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Driving Hours Tracker</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <header>
+    <h1>Driving Hours Tracker</h1>
+    <p class="subtitle">Learner's permit progress — 50 hours total</p>
+  </header>
+
+  <main>
+
+    <!-- Progress Dashboard -->
+    <section class="card" id="dashboard">
+      <h2>Progress</h2>
+
+      <div class="overall-row">
+        <div class="overall-badge">
+          <span id="overall-pct">0%</span> complete
+        </div>
+      </div>
+
+      <div class="progress-group">
+        <div class="progress-label">
+          <span class="label-text">Daytime</span>
+          <span class="label-stat"><span id="day-logged">0.0</span>h &nbsp;/&nbsp; 40h</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill day-fill" id="day-bar" style="width:0%"></div>
+        </div>
+        <div class="progress-sublabel">
+          <span id="day-pct">0%</span>
+          <span><span id="day-remaining">40.0</span>h remaining</span>
+        </div>
+      </div>
+
+      <div class="progress-group">
+        <div class="progress-label">
+          <span class="label-text">Nighttime</span>
+          <span class="label-stat"><span id="night-logged">0.0</span>h &nbsp;/&nbsp; 10h</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill night-fill" id="night-bar" style="width:0%"></div>
+        </div>
+        <div class="progress-sublabel">
+          <span id="night-pct">0%</span>
+          <span><span id="night-remaining">10.0</span>h remaining</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Session Logging Form -->
+    <section class="card" id="session-form">
+      <h2 id="form-title">Log Session</h2>
+
+      <form id="log-form" novalidate>
+
+        <div class="form-group">
+          <label for="session-date">Date</label>
+          <input type="date" id="session-date" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="start-time">Start Time</label>
+            <input type="time" id="start-time" required>
+          </div>
+          <div class="form-group">
+            <label for="end-time">End Time</label>
+            <input type="time" id="end-time" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Total Duration</label>
+          <div class="duration-value" id="total-display">—</div>
+        </div>
+
+        <div class="form-group">
+          <label>Day / Night Split</label>
+          <p class="field-hint">Adjust how many minutes were daytime vs. nighttime (must add up to total)</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="day-mins" class="sub-label day-sub">Day (minutes)</label>
+              <input type="number" id="day-mins" min="0" value="0" required>
+            </div>
+            <div class="form-group">
+              <label for="night-mins" class="sub-label night-sub">Night (minutes)</label>
+              <input type="number" id="night-mins" min="0" value="0" required>
+            </div>
+          </div>
+          <p class="split-error" id="split-error" hidden>Day + Night must equal total session duration.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="supervisor">Supervisor Name</label>
+          <input type="text" id="supervisor" placeholder="e.g. Mom, Dad, Jane Smith" required>
+        </div>
+
+        <div class="form-group">
+          <label for="location">Location / Route</label>
+          <input type="text" id="location" placeholder="e.g. Highway 1, Downtown loop">
+        </div>
+
+        <div class="form-group">
+          <label for="weather">Weather Conditions</label>
+          <select id="weather" required>
+            <option value="Clear">Clear</option>
+            <option value="Cloudy">Cloudy</option>
+            <option value="Rain">Rain</option>
+            <option value="Snow">Snow</option>
+            <option value="Fog">Fog</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="submit-btn">Log Session</button>
+          <button type="button" class="btn btn-secondary" id="cancel-edit-btn" style="display:none" onclick="cancelEdit()">Cancel</button>
+        </div>
+
+      </form>
+    </section>
+
+    <!-- Session History -->
+    <section class="card">
+      <h2>Session History</h2>
+      <div id="session-list"></div>
+    </section>
+
+    <!-- Supervisor Leaderboard -->
+    <section class="card">
+      <h2>Supervisor Leaderboard</h2>
+      <div id="supervisor-list"></div>
+    </section>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
