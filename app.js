@@ -687,3 +687,44 @@ loadSessions();
 initForm();
 renderAll();
 window.addEventListener('resize', renderChart);
+
+// ---- Service Worker registration ----
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+  });
+}
+
+// ---- Install banner ----
+
+const INSTALL_DISMISSED_KEY = 'pwaInstallDismissed';
+let deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+
+  if (!localStorage.getItem(INSTALL_DISMISSED_KEY)) {
+    document.getElementById('install-banner').hidden = false;
+  }
+});
+
+document.getElementById('install-btn').addEventListener('click', () => {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.then(() => {
+    deferredInstallPrompt = null;
+    document.getElementById('install-banner').hidden = true;
+  });
+});
+
+document.getElementById('dismiss-btn').addEventListener('click', () => {
+  document.getElementById('install-banner').hidden = true;
+  localStorage.setItem(INSTALL_DISMISSED_KEY, '1');
+});
+
+window.addEventListener('appinstalled', () => {
+  document.getElementById('install-banner').hidden = true;
+  deferredInstallPrompt = null;
+});

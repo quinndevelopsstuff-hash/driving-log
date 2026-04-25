@@ -703,3 +703,73 @@ input::placeholder { color: #99bfaa; }
   .progress-track { height: 18px; }
   #progress-chart  { height: 240px; }
 }
+
+/* ---- Install Banner ---- */
+.install-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: var(--text-dark);
+  color: #fff;
+  box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.28);
+}
+
+.install-banner[hidden] { display: none; }
+
+.install-banner-inner {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 14px var(--gap);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.install-banner-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.install-banner-text strong {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--day);
+}
+
+.install-banner-text span {
+  font-size: 0.78rem;
+  opacity: 0.78;
+  line-height: 1.35;
+}
+
+.install-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.install-btn {
+  background: var(--day);
+  color: #fff;
+  padding: 9px 18px;
+  font-size: 0.85rem;
+}
+
+.install-btn:hover { opacity: 0.9; }
+
+.dismiss-btn {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  padding: 8px 11px;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.dismiss-btn:hover { background: rgba(255, 255, 255, 0.22); }
