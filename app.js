@@ -743,7 +743,7 @@ function editSession(id) {
   document.getElementById('submit-btn').textContent      = 'Update Session';
   document.getElementById('cancel-edit-btn').style.display = '';
 
-  document.getElementById('session-form').scrollIntoView({ behavior: 'smooth' });
+  document.getElementById('log').scrollIntoView({ behavior: 'smooth' });
 }
 
 function deleteSession(id) {
@@ -801,6 +801,21 @@ loadSessions();
 initForm();
 renderAll();
 updateAppBadge();
+
+// ---- PWA shortcut deep-link scroll ----
+
+setTimeout(() => {
+  const hash = window.location.hash;
+  if (hash === '#log') {
+    document.getElementById('log').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('session-date').focus();
+  } else if (hash === '#progress') {
+    document.getElementById('progress').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else if (hash === '#history') {
+    document.getElementById('history').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}, 300);
+
 window.addEventListener('resize', renderChart);
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderChart);
 
