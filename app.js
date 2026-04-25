@@ -29,6 +29,9 @@ let historyView     = 'all';
 let collapsedGroups = new Set();
 let pendingDelete     = null;
 let pendingDeleteTimer = null;
+let previousDayMinutes   = 0;
+let previousNightMinutes = 0;
+let dashboardAnimId      = 0;
 
 // ---- Persistence ----
 
@@ -253,36 +256,49 @@ function groupLabel(key, view) {
 
 function renderDashboard() {
   const { day, night } = getTotals();
-  const total = day + night;
-
-  const dayPct     = Math.min(100, (day   / DAY_TARGET_MINS)   * 100);
-  const nightPct   = Math.min(100, (night / NIGHT_TARGET_MINS) * 100);
+  const total      = day + night;
   const overallPct = Math.min(100, (total / (DAY_TARGET_MINS + NIGHT_TARGET_MINS)) * 100);
-
-  document.getElementById('day-logged').textContent    = fmtHours(day);
-  document.getElementById('day-remaining').textContent = fmtHours(Math.max(0, DAY_TARGET_MINS - day));
-  document.getElementById('day-pct').textContent       = Math.round(dayPct) + '%';
-
-  document.getElementById('night-logged').textContent    = fmtHours(night);
-  document.getElementById('night-remaining').textContent = fmtHours(Math.max(0, NIGHT_TARGET_MINS - night));
-  document.getElementById('night-pct').textContent       = Math.round(nightPct) + '%';
 
   document.getElementById('overall-pct').textContent = Math.round(overallPct) + '%';
 
-  const dayBar   = document.getElementById('day-bar');
-  const nightBar = document.getElementById('night-bar');
+  const fromDay   = previousDayMinutes;
+  const fromNight = previousNightMinutes;
+  previousDayMinutes   = day;
+  previousNightMinutes = night;
 
-  if (!barsAnimated) {
-    barsAnimated = true;
-    // Defer past first paint so the browser commits width:0% before animating
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      dayBar.style.width   = dayPct + '%';
-      nightBar.style.width = nightPct + '%';
-    }));
-  } else {
-    dayBar.style.width   = dayPct + '%';
-    nightBar.style.width = nightPct + '%';
+  const animId   = ++dashboardAnimId;
+  const start    = performance.now();
+  const DURATION = 1200;
+
+  function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+
+  function tick(now) {
+    if (animId !== dashboardAnimId) return; // a newer call has taken over
+
+    const raw = Math.min(1, (now - start) / DURATION);
+    const e   = easeOut(raw);
+
+    const curDay   = fromDay   + (day   - fromDay)   * e;
+    const curNight = fromNight + (night - fromNight) * e;
+
+    const dayPct   = Math.min(100, (curDay   / DAY_TARGET_MINS)   * 100);
+    const nightPct = Math.min(100, (curNight / NIGHT_TARGET_MINS) * 100);
+
+    document.getElementById('day-logged').textContent    = fmtHours(curDay);
+    document.getElementById('day-remaining').textContent = fmtHours(Math.max(0, DAY_TARGET_MINS   - curDay));
+    document.getElementById('day-pct').textContent       = Math.round(dayPct) + '%';
+
+    document.getElementById('night-logged').textContent    = fmtHours(curNight);
+    document.getElementById('night-remaining').textContent = fmtHours(Math.max(0, NIGHT_TARGET_MINS - curNight));
+    document.getElementById('night-pct').textContent       = Math.round(nightPct) + '%';
+
+    document.getElementById('day-bar').style.width   = dayPct + '%';
+    document.getElementById('night-bar').style.width = nightPct + '%';
+
+    if (raw < 1) requestAnimationFrame(tick);
   }
+
+  requestAnimationFrame(tick);
 }
 
 // ---- Render: Milestone Badges ----
