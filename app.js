@@ -181,7 +181,22 @@ function calculateEstimatedCompletion() {
     }
     dayRate   = wDay   / 7;
     nightRate = wNight / 7;
+
+    // Rolling window is empty (no sessions in the last 7 days — e.g. user
+    // hasn't driven recently). Fall back to the overall simple average so
+    // rates never collapse to zero just because of a gap in activity.
+    if (dayRate === 0 && nightRate === 0) {
+      const elapsed = Math.max(1, calDays(noon(sorted[0].date), today));
+      dayRate   = totalDay   / elapsed;
+      nightRate = totalNight / elapsed;
+    }
   }
+
+  const debugElapsed = calDays(noon(sorted[0].date), today);
+  console.log(
+    '[ETA] tier=%d  sessions=%d  elapsed_days=%d  dayRate=%.2f min/day  nightRate=%.2f min/day',
+    tier, n, debugElapsed, dayRate, nightRate
+  );
 
   const remDay   = Math.max(0, DAY_TARGET_MINS   - totalDay);
   const remNight = Math.max(0, NIGHT_TARGET_MINS - totalNight);
