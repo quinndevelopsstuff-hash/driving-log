@@ -711,6 +711,7 @@ function handleSubmit(e) {
 
   saveSessions();
   renderAll();
+  updateAppBadge();
   resetForm();
 }
 
@@ -750,6 +751,7 @@ function deleteSession(id) {
   sessions = sessions.filter(s => s.id !== id);
   saveSessions();
   renderAll();
+  updateAppBadge();
 }
 
 function cancelEdit() {
@@ -776,11 +778,29 @@ function resetForm() {
   delete document.getElementById('day-mins').dataset.manualEdit;
 }
 
+// ---- Badging API ----
+
+// Shows progress toward the 50-hour driving goal as an app badge number (percentage complete).
+// Visually appears only on Android (Chrome) and desktop (Chrome/Edge) when installed as a PWA.
+// iOS Safari does not support the Badging API; the call fails silently there.
+// No user permission is required for badging.
+function updateAppBadge() {
+  const { day, night } = getTotals();
+  const percentage = Math.round((day + night) / (DAY_TARGET_MINS + NIGHT_TARGET_MINS) * 100);
+  if (!('setAppBadge' in navigator)) return;
+  if (percentage >= 100) {
+    navigator.clearAppBadge().catch(() => {});
+  } else {
+    navigator.setAppBadge(percentage).catch(() => {});
+  }
+}
+
 // ---- Bootstrap ----
 
 loadSessions();
 initForm();
 renderAll();
+updateAppBadge();
 window.addEventListener('resize', renderChart);
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderChart);
 
