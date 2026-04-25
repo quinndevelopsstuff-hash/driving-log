@@ -599,6 +599,29 @@ input::placeholder { color: #99bfaa; }
   font-style: italic;
 }
 
+.eta-no-rate {
+  font-size: 0.78rem;
+  color: var(--text-light);
+  font-style: italic;
+}
+
+.eta-confidence {
+  margin-top: 9px;
+}
+
+.confidence-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 10px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.confidence-low  { background: rgba(245, 166, 35, 0.16);  color: #a06a00; }
+.confidence-fair { background: rgba(163, 200, 75, 0.20);  color: #5a7a10; }
+.confidence-good { background: rgba(82,  183, 136, 0.18); color: #1a6b43; }
+
 /* ---- Progress Chart ---- */
 #progress-chart {
   display: block;

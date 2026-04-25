@@ -103,41 +103,96 @@ function getSupervisorStats() {
 
 // ---- ETA calculation ----
 
-function getETAData() {
-  if (!sessions.length) return null;
+// Hybrid algorithm that improves accuracy as session count grows.
+//
+// Tier 1 (1–2 sessions): simple average — total minutes ÷ days elapsed.
+// Tier 2 (3–6 sessions): weighted moving average of the last 3 sessions
+//   (weights 3/2/1 newest-to-oldest), normalised over the days covered.
+// Tier 3 (7+ sessions): 7-day rolling window — sum of minutes in the last
+//   7 calendar days divided by 7.
+//
+// Returns { dayEta, nightEta, dayRate, nightRate, confidence, sessionCount }
+// where *Eta is a Date, 'achieved', or null (rate = 0 → no projection).
+function calculateEstimatedCompletion() {
+  const n = sessions.length;
+  if (n === 0) return null;
 
-  const { day, night } = getTotals();
-  const sortedDates  = sessions.map(s => s.date).sort();
-  const firstDate    = new Date(sortedDates[0] + 'T12:00:00');
-  const today        = new Date();
+  const { day: totalDay, night: totalNight } = getTotals();
+
+  const today = new Date();
   today.setHours(12, 0, 0, 0);
 
-  const elapsedDays  = (today - firstDate) / 86400000;
-  const elapsedWeeks = elapsedDays / 7;
+  const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date));
 
-  if (elapsedDays < 7) return null;
+  function noon(dateStr) {
+    return new Date(dateStr + 'T12:00:00');
+  }
 
-  const dayPerWeek   = day   / elapsedWeeks;
-  const nightPerWeek = night / elapsedWeeks;
+  function calDays(a, b) {
+    return Math.max(0, Math.round((b - a) / 86400000));
+  }
 
-  function addDays(base, n) {
-    const d = new Date(base);
-    d.setDate(d.getDate() + Math.round(n));
+  function projectDate(ratePerDay, remainingMins) {
+    if (remainingMins <= 0) return 'achieved';
+    if (ratePerDay <= 0)    return null;
+    const d = new Date(today);
+    d.setDate(d.getDate() + Math.ceil(remainingMins / ratePerDay));
     return d;
   }
 
-  const remDay   = Math.max(0, DAY_TARGET_MINS   - day);
-  const remNight = Math.max(0, NIGHT_TARGET_MINS - night);
+  let dayRate   = 0;
+  let nightRate = 0;
+  let tier;
 
-  const dayEta = remDay === 0
-    ? 'achieved'
-    : dayPerWeek > 0 ? addDays(today, (remDay   / dayPerWeek)   * 7) : null;
+  if (n <= 2) {
+    // ── Tier 1: simple average rate ────────────────────────────────────────
+    tier = 1;
+    const elapsed = Math.max(1, calDays(noon(sorted[0].date), today));
+    dayRate   = totalDay   / elapsed;
+    nightRate = totalNight / elapsed;
 
-  const nightEta = remNight === 0
-    ? 'achieved'
-    : nightPerWeek > 0 ? addDays(today, (remNight / nightPerWeek) * 7) : null;
+  } else if (n <= 6) {
+    // ── Tier 2: weighted moving average of last 3 sessions ─────────────────
+    // Weights [1, 2, 3] map to [oldest, middle, most-recent] of the window.
+    tier = 2;
+    const last3  = sorted.slice(-3);
+    const W      = [1, 2, 3];
+    const wDay   = last3.reduce((s, sess, i) => s + W[i] * sess.dayMinutes,   0);
+    const wNight = last3.reduce((s, sess, i) => s + W[i] * sess.nightMinutes, 0);
+    // Divide by days since the oldest session in the window to get a
+    // weighted daily rate (recent-heavy sessions raise the projection).
+    const span = Math.max(1, calDays(noon(last3[0].date), today));
+    dayRate   = wDay   / span;
+    nightRate = wNight / span;
 
-  return { dayEta, nightEta, elapsedWeeks, dayPerWeek, nightPerWeek };
+  } else {
+    // ── Tier 3: 7-day rolling average ──────────────────────────────────────
+    tier = 3;
+    const cutoff = new Date(today);
+    cutoff.setDate(today.getDate() - 6); // window: 6 days ago → today (7 days)
+
+    let wDay = 0, wNight = 0;
+    for (const s of sessions) {
+      if (noon(s.date) >= cutoff) {
+        wDay   += s.dayMinutes;
+        wNight += s.nightMinutes;
+      }
+    }
+    dayRate   = wDay   / 7;
+    nightRate = wNight / 7;
+  }
+
+  const remDay   = Math.max(0, DAY_TARGET_MINS   - totalDay);
+  const remNight = Math.max(0, NIGHT_TARGET_MINS - totalNight);
+
+  return {
+    dayEta:       projectDate(dayRate,   remDay),
+    nightEta:     projectDate(nightRate, remNight),
+    dayRate,
+    nightRate,
+    confidence:   tier === 1 ? 'low' : tier === 2 ? 'fair' : 'good',
+    sessionCount: n,
+  };
 }
 
 // ---- History grouping helpers ----
@@ -232,35 +287,48 @@ function renderMilestoneBadges() {
 
 function renderETA() {
   const el   = document.getElementById('eta-content');
-  const data = getETAData();
+  const data = calculateEstimatedCompletion();
 
-  if (!data || (!data.dayEta && !data.nightEta)) {
-    el.innerHTML = '<p class="eta-insufficient">Log more sessions to see an estimate.</p>';
+  if (!data) {
+    el.innerHTML = '<p class="eta-insufficient">Log your first session to see an estimate.</p>';
     return;
   }
 
-  const { dayEta, nightEta, elapsedWeeks, dayPerWeek, nightPerWeek } = data;
+  const { dayEta, nightEta, dayRate, nightRate, confidence, sessionCount } = data;
 
   function etaCell(eta) {
-    if (eta === 'achieved') return '<span class="eta-achieved">Achieved!</span>';
-    if (!eta)               return '<span style="font-style:italic;color:var(--text-light)">No data yet</span>';
+    if (eta === 'achieved') return '<span class="eta-achieved">Goal reached! &#x1F389;</span>';
+    if (!eta)               return '<span class="eta-no-rate">Log another session to see an estimate</span>';
     return fmtDateObj(eta);
   }
+
+  function rateCell(ratePerDay) {
+    if (ratePerDay <= 0) return '';
+    return `<span class="eta-rate">${fmtHours(ratePerDay)}h/day</span>`;
+  }
+
+  const CONF_LABELS = {
+    low:  `Low confidence &middot; ${sessionCount} session${sessionCount === 1 ? '' : 's'} logged`,
+    fair: `Fair confidence &middot; ${sessionCount} sessions logged`,
+    good: `Good confidence &middot; ${sessionCount} sessions logged`,
+  };
 
   const dayRow = `<div class="eta-row">` +
     `<span class="eta-type day-type">Day</span>` +
     `<span class="eta-date">${etaCell(dayEta)}</span>` +
-    (dayPerWeek > 0 ? `<span class="eta-rate">avg ${fmtHours(dayPerWeek)}h/wk</span>` : '') +
+    rateCell(dayRate) +
     `</div>`;
 
   const nightRow = `<div class="eta-row">` +
     `<span class="eta-type night-type">Night</span>` +
     `<span class="eta-date">${etaCell(nightEta)}</span>` +
-    (nightPerWeek > 0 ? `<span class="eta-rate">avg ${fmtHours(nightPerWeek)}h/wk</span>` : '') +
+    rateCell(nightRate) +
     `</div>`;
 
   el.innerHTML = dayRow + nightRow +
-    `<div class="eta-basis">Based on ${elapsedWeeks.toFixed(1)} weeks of driving data</div>`;
+    `<div class="eta-confidence">` +
+    `<span class="confidence-badge confidence-${confidence}">${CONF_LABELS[confidence]}</span>` +
+    `</div>`;
 }
 
 // ---- Render: Session History ----
