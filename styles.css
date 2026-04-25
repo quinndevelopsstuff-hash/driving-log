@@ -190,6 +190,46 @@ header .tagline {
   margin-top: 5px;
 }
 
+/* ---- Streak bar ---- */
+.streak-bar {
+  text-align: center;
+  padding: 0 16px 12px;
+}
+
+.streak-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 99px;
+  background: var(--hero-stat-bg);
+  border: 1.5px solid var(--hero-stat-border);
+  color: var(--white);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.streak-badge.streak-none {
+  opacity: 0.55;
+  font-weight: 400;
+}
+
+.streak-badge.streak-hot {
+  color: #52b788;
+}
+
+.streak-flame {
+  display: inline-block;
+}
+
+@keyframes flame-pulse {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(255, 140, 0, 0.5)); }
+  50%       { filter: drop-shadow(0 0 6px rgba(255, 140, 0, 0.9)); }
+}
+
+.streak-flame-pulse {
+  animation: flame-pulse 1.5s ease-in-out infinite;
+}
+
 /* ---- Main layout ---- */
 main {
   max-width: 600px;

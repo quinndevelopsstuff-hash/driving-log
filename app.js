@@ -118,6 +118,30 @@ function getSupervisorStats() {
     .sort((a, b) => b.total - a.total);
 }
 
+function calcStreak() {
+  if (!sessions.length) return 0;
+
+  const today  = todayStr();
+  const dates  = [...new Set(sessions.map(s => s.date))].sort();
+  const last   = dates[dates.length - 1];
+  const todayMs = new Date(today + 'T12:00:00').getTime();
+  const lastMs  = new Date(last  + 'T12:00:00').getTime();
+
+  // Streak is broken if the most recent session was 2+ days ago
+  if (Math.round((todayMs - lastMs) / 86400000) > 1) return 0;
+
+  // Count consecutive days backwards from the most recent date
+  let streak = 1;
+  for (let i = dates.length - 2; i >= 0; i--) {
+    const gap = Math.round(
+      (new Date(dates[i + 1] + 'T12:00:00') - new Date(dates[i] + 'T12:00:00')) / 86400000
+    );
+    if (gap === 1) streak++;
+    else break;
+  }
+  return streak;
+}
+
 // ---- ETA calculation ----
 
 // Hybrid algorithm that improves accuracy as session count grows.
@@ -299,6 +323,28 @@ function renderDashboard() {
   }
 
   requestAnimationFrame(tick);
+}
+
+// ---- Render: Streak ----
+
+function renderStreak() {
+  const streak = calcStreak();
+  const el     = document.getElementById('streak-badge');
+
+  el.className = 'streak-badge';
+
+  if (streak === 0) {
+    el.innerHTML = 'No active streak &mdash; drive today!';
+    el.classList.add('streak-none');
+    return;
+  }
+
+  const flameClass = streak >= 14 ? 'streak-flame streak-flame-pulse' : 'streak-flame';
+  const flame      = `<span class="${flameClass}">🔥</span>`;
+  const label      = streak === 1 ? '1 day streak &mdash; keep it up!' : `${streak} day streak`;
+  el.innerHTML     = `${flame} ${label}`;
+
+  if (streak >= 7) el.classList.add('streak-hot');
 }
 
 // ---- Render: Milestone Badges ----
@@ -631,6 +677,7 @@ function renderSupervisorStats() {
 
 function renderAll() {
   renderDashboard();
+  renderStreak();
   renderMilestoneBadges();
   renderETA();
   renderChart();
