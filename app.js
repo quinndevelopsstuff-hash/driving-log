@@ -11,10 +11,11 @@ const MILESTONES = [
   { pct: 100, label: 'Goal reached!'  },
 ];
 
-let sessions     = [];
-let editingId    = null;
-let barsAnimated = false;
-let historyView  = 'all';
+let sessions        = [];
+let editingId       = null;
+let barsAnimated    = false;
+let historyView     = 'all';
+let collapsedGroups = new Set();
 
 // ---- Persistence ----
 
@@ -389,18 +390,28 @@ function renderHistory() {
 
   let html = '';
   for (const [key, gs] of groups) {
-    const dayMins   = gs.reduce((t, s) => t + s.dayMinutes,   0);
-    const nightMins = gs.reduce((t, s) => t + s.nightMinutes, 0);
+    const dayMins    = gs.reduce((t, s) => t + s.dayMinutes,   0);
+    const nightMins  = gs.reduce((t, s) => t + s.nightMinutes, 0);
+    const isCollapsed = collapsedGroups.has(key);
+    const chevronSVG =
+      `<svg class="group-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">` +
+        `<path d="M3 6l5 5 5-5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>` +
+      `</svg>`;
     html +=
-      `<div class="group-header">` +
+      `<div class="group-header${isCollapsed ? ' collapsed' : ''}" data-group-key="${key}">` +
         `<span class="group-label">${groupLabel(key, historyView)}</span>` +
-        `<div class="group-subtotals">` +
-          `<span class="badge day-badge">${fmtHours(dayMins)}h day</span>` +
-          `<span class="badge night-badge">${fmtHours(nightMins)}h night</span>` +
-          `<span class="badge total-badge">${fmtHours(dayMins + nightMins)}h total</span>` +
+        `<div class="group-header-right">` +
+          `<div class="group-subtotals">` +
+            `<span class="badge day-badge">${fmtHours(dayMins)}h day</span>` +
+            `<span class="badge night-badge">${fmtHours(nightMins)}h night</span>` +
+            `<span class="badge total-badge">${fmtHours(dayMins + nightMins)}h total</span>` +
+          `</div>` +
+          chevronSVG +
         `</div>` +
+      `</div>` +
+      `<div class="group-body${isCollapsed ? ' collapsed' : ''}">` +
+        gs.map(sessionItemHTML).join('') +
       `</div>`;
-    html += gs.map(sessionItemHTML).join('');
   }
   el.innerHTML = html;
 }
@@ -757,6 +768,28 @@ initForm();
 renderAll();
 window.addEventListener('resize', renderChart);
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderChart);
+
+// ---- History collapsible ----
+
+document.getElementById('history-section-toggle').addEventListener('click', () => {
+  const toggle      = document.getElementById('history-section-toggle');
+  const list        = document.getElementById('session-list');
+  const nowCollapsed = list.classList.toggle('collapsed');
+  toggle.classList.toggle('collapsed', nowCollapsed);
+});
+
+// Event delegation — handles group header clicks regardless of re-renders
+document.getElementById('session-list').addEventListener('click', e => {
+  const header = e.target.closest('.group-header');
+  if (!header) return;
+  const key  = header.dataset.groupKey;
+  const body = header.nextElementSibling;
+  if (!body || !body.classList.contains('group-body')) return;
+  const nowCollapsed = body.classList.toggle('collapsed');
+  header.classList.toggle('collapsed', nowCollapsed);
+  if (nowCollapsed) collapsedGroups.add(key);
+  else collapsedGroups.delete(key);
+});
 
 // ---- Service Worker registration ----
 

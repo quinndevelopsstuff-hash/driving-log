@@ -165,7 +165,12 @@
     <!-- Session History -->
     <section class="card">
       <div class="history-header">
-        <h2>Session History</h2>
+        <div class="history-section-toggle" id="history-section-toggle">
+          <h2>Session History</h2>
+          <svg class="history-chevron" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+            <path d="M4 7l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
         <div class="view-toggle" role="group" aria-label="View mode">
           <button class="toggle-btn active" data-view="all"   onclick="setHistoryView('all')">All</button>
           <button class="toggle-btn"        data-view="week"  onclick="setHistoryView('week')">Week</button>
