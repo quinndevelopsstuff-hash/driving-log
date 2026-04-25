@@ -895,3 +895,36 @@ input::placeholder { color: var(--placeholder); }
 }
 
 .dismiss-btn:hover { background: rgba(255, 255, 255, 0.22); }
+
+/* ---- Export / Import ---- */
+.data-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  padding: 32px 16px 48px;
+}
+
+.data-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 99px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--white);
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.data-btn:hover  { opacity: 0.88; }
+.data-btn:active { transform: scale(0.97); }
+
+.export-btn { background: #52b788; }
+.import-btn { background: #0d7377; }
+
+@media (prefers-color-scheme: dark) {
+  .import-btn { background: #0d9498; }
+}

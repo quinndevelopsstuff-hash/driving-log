@@ -181,6 +181,25 @@
       <div id="supervisor-list"></div>
     </section>
 
+    <!-- Export / Import -->
+    <div class="data-actions">
+      <button class="data-btn export-btn" id="export-btn">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M10 13V3M10 13l-3-3M10 13l3-3" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M3 14v1.5A1.5 1.5 0 0 0 4.5 17h11A1.5 1.5 0 0 0 17 15.5V14" stroke="#fff" stroke-width="1.75" stroke-linecap="round"/>
+        </svg>
+        Export
+      </button>
+      <button class="data-btn import-btn" id="import-btn">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M10 7v10M10 7l-3 3M10 7l3 3" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M3 6V4.5A1.5 1.5 0 0 1 4.5 3h11A1.5 1.5 0 0 1 17 4.5V6" stroke="#fff" stroke-width="1.75" stroke-linecap="round"/>
+        </svg>
+        Import
+      </button>
+      <input type="file" id="import-file-input" accept=".json" hidden>
+    </div>
+
   </main>
 
   <div id="install-banner" class="install-banner" hidden>

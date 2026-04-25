@@ -798,3 +798,58 @@ window.addEventListener('appinstalled', () => {
   document.getElementById('install-banner').hidden = true;
   deferredInstallPrompt = null;
 });
+
+// ---- Export / Import ----
+
+document.getElementById('export-btn').addEventListener('click', () => {
+  const json = JSON.stringify(
+    JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'),
+    null,
+    2
+  );
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'drive-log-backup.json';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('import-btn').addEventListener('click', () => {
+  document.getElementById('import-file-input').value = '';
+  document.getElementById('import-file-input').click();
+});
+
+document.getElementById('import-file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = evt => {
+    let parsed;
+    try {
+      parsed = JSON.parse(evt.target.result);
+    } catch {
+      alert('This file doesn\'t look like a valid Drive Log backup.');
+      return;
+    }
+
+    const REQUIRED_KEYS = ['id', 'date', 'startTime', 'endTime', 'dayMinutes', 'nightMinutes'];
+    const isValid =
+      Array.isArray(parsed) &&
+      parsed.every(s => REQUIRED_KEYS.every(k => Object.prototype.hasOwnProperty.call(s, k)));
+
+    if (!isValid) {
+      alert('This file doesn\'t look like a valid Drive Log backup.');
+      return;
+    }
+
+    if (!confirm('This will replace all your current data. Are you sure?')) return;
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+    loadSessions();
+    renderAll();
+  };
+  reader.readAsText(file);
+});
