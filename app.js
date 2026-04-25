@@ -11,6 +11,17 @@ const MILESTONES = [
   { pct: 100, label: 'Goal reached!'  },
 ];
 
+const MILESTONE_NOTIFICATIONS = [
+  { type: 'day',   threshold: DAY_TARGET_MINS   * 0.25, key: 'day-25',    msg: "You've logged 25% of your day hours! 🌱" },
+  { type: 'day',   threshold: DAY_TARGET_MINS   * 0.50, key: 'day-50',    msg: 'Halfway through your day hours! ☀️' },
+  { type: 'day',   threshold: DAY_TARGET_MINS   * 0.75, key: 'day-75',    msg: '75% of day hours done — almost there! 🙌' },
+  { type: 'day',   threshold: DAY_TARGET_MINS,          key: 'day-100',   msg: 'Day hours complete! 40h done! 🎉' },
+  { type: 'night', threshold: NIGHT_TARGET_MINS * 0.25, key: 'night-25',  msg: "You've logged 25% of your night hours! 🌙" },
+  { type: 'night', threshold: NIGHT_TARGET_MINS * 0.50, key: 'night-50',  msg: 'Halfway through your night hours! ⭐' },
+  { type: 'night', threshold: NIGHT_TARGET_MINS * 0.75, key: 'night-75',  msg: '75% of night hours done — so close! 🌟' },
+  { type: 'night', threshold: NIGHT_TARGET_MINS,        key: 'night-100', msg: 'Night hours complete! 10h done! 🎉' },
+];
+
 let sessions        = [];
 let editingId       = null;
 let barsAnimated    = false;
@@ -712,6 +723,7 @@ function handleSubmit(e) {
   saveSessions();
   renderAll();
   updateAppBadge();
+  checkMilestoneNotifications();
   resetForm();
 }
 
@@ -778,6 +790,87 @@ function resetForm() {
   delete document.getElementById('day-mins').dataset.manualEdit;
 }
 
+// ---- Notifications ----
+
+// True background scheduled notifications require a push server and service worker push events.
+// This implementation fires notifications on page load as a best-effort alternative — they will
+// only trigger when the user opens the app. This is fine for a personal PWA with no backend.
+
+function showNotification(title, body, tag, actions) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.ready.then(registration => {
+    registration.showNotification(title, {
+      body,
+      tag,
+      icon:    'icons/icon-192x192.png',
+      badge:   'icons/icon-96x96.png',
+      actions,
+      vibrate: [200, 100, 200],
+    });
+  }).catch(() => {});
+}
+
+function initNotifications() {
+  if (!('Notification' in window)) return;
+
+  if (Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
+  const today = todayStr();
+  const hour  = new Date().getHours();
+  const hasSessionToday = sessions.some(s => s.date === today);
+
+  if (!hasSessionToday && hour >= 20 && localStorage.getItem('lastDailyReminder') !== today) {
+    showNotification('Drive Log 🚗', 'Did you drive today? Tap to log your session.', 'daily-reminder');
+    localStorage.setItem('lastDailyReminder', today);
+  }
+
+  const lastWeekly       = localStorage.getItem('lastWeeklySummary');
+  const todayMs          = new Date(today + 'T12:00:00').getTime();
+  const lastWeeklyMs     = lastWeekly ? new Date(lastWeekly + 'T12:00:00').getTime() : 0;
+  const daysSinceSummary = Math.floor((todayMs - lastWeeklyMs) / 86400000);
+
+  if (daysSinceSummary >= 7) {
+    const cutoff = new Date(today + 'T00:00:00');
+    cutoff.setDate(cutoff.getDate() - 6);
+
+    let weekMins = 0;
+    for (const s of sessions) {
+      if (new Date(s.date + 'T00:00:00') >= cutoff) weekMins += s.dayMinutes + s.nightMinutes;
+    }
+
+    const { day, night } = getTotals();
+    const remainingMins  = Math.max(0, (DAY_TARGET_MINS + NIGHT_TARGET_MINS) - (day + night));
+
+    showNotification(
+      'Drive Log — Weekly Summary 📊',
+      `This week: ${fmtDuration(weekMins)} logged. ${fmtDuration(remainingMins)} still remaining to your 50h goal!`,
+      'weekly-summary'
+    );
+    localStorage.setItem('lastWeeklySummary', today);
+  }
+}
+
+function checkMilestoneNotifications() {
+  const { day, night } = getTotals();
+  const notified = JSON.parse(localStorage.getItem('notifiedMilestones') || '[]');
+  let changed = false;
+
+  for (const m of MILESTONE_NOTIFICATIONS) {
+    const value = m.type === 'day' ? day : night;
+    if (value >= m.threshold && !notified.includes(m.key)) {
+      showNotification('Drive Log', m.msg, 'milestone');
+      notified.push(m.key);
+      changed = true;
+      if (m.key === 'day-100' || m.key === 'night-100') updateAppBadge();
+    }
+  }
+
+  if (changed) localStorage.setItem('notifiedMilestones', JSON.stringify(notified));
+}
+
 // ---- Badging API ----
 
 // Shows progress toward the 50-hour driving goal as an app badge number (percentage complete).
@@ -801,6 +894,7 @@ loadSessions();
 initForm();
 renderAll();
 updateAppBadge();
+setTimeout(initNotifications, 5000);
 
 // ---- PWA shortcut deep-link scroll ----
 

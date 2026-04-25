@@ -37,6 +37,15 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+// Open the app to the right section when a notification is tapped
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const url = (event.action === 'daily-reminder' || event.notification.tag === 'daily-reminder')
+    ? 'index.html#log'
+    : 'index.html';
+  event.waitUntil(clients.openWindow(url));
+});
+
 // Cache-first, fall back to network
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
