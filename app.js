@@ -257,13 +257,10 @@ function calculateEstimatedCompletion() {
 
   const confidence = n <= 2 ? 'low' : n <= 6 ? 'fair' : 'good';
 
-  const likelyDay   = projectDate(likelyDayRate,   remDay,   simpleDay);
-  const likelyNight = projectDate(likelyNightRate, remNight, simpleNight);
-
   if (n < 3) {
     return {
-      day:   { likely: likelyDay,   complete: remDay   <= 0 },
-      night: { likely: likelyNight, complete: remNight <= 0 },
+      day:   { likely: projectDate(likelyDayRate,   remDay,   simpleDay),   complete: remDay   <= 0 },
+      night: { likely: projectDate(likelyNightRate, remNight, simpleNight), complete: remNight <= 0 },
       confidence,
       sessionCount: n,
       enoughDataForRange: false,
@@ -273,23 +270,61 @@ function calculateEstimatedCompletion() {
   const dayWins   = allWindowRates('day');
   const nightWins = allWindowRates('night');
 
-  const bestDayRate    = dayWins.length   ? Math.max(...dayWins)                    : simpleDay;
-  const worstDayArr    = dayWins.filter(r => r > 0);
-  const worstDayRate   = worstDayArr.length  ? Math.min(...worstDayArr)             : simpleDay;
+  const rawBestDay    = dayWins.length    ? Math.max(...dayWins)               : simpleDay;
+  const worstDayArr   = dayWins.filter(r => r > 0);
+  const rawWorstDay   = worstDayArr.length ? Math.min(...worstDayArr)          : simpleDay;
 
-  const bestNightRate  = nightWins.length ? Math.max(...nightWins)                  : simpleNight;
-  const worstNightArr  = nightWins.filter(r => r > 0);
-  const worstNightRate = worstNightArr.length ? Math.min(...worstNightArr)          : simpleNight;
+  const rawBestNight  = nightWins.length  ? Math.max(...nightWins)             : simpleNight;
+  const worstNightArr = nightWins.filter(r => r > 0);
+  const rawWorstNight = worstNightArr.length ? Math.min(...worstNightArr)      : simpleNight;
+
+  // Sort all three rates descending so finalBest >= finalLikely >= finalWorst.
+  // The weighted-4-week likely rate can fall outside the window scan's range,
+  // so we must sort rather than assume the window extremes bracket the middle.
+  const [finalBestDayRate, finalLikelyDayRate, finalWorstDayRate] =
+    [rawBestDay, likelyDayRate, rawWorstDay].sort((a, b) => b - a);
+
+  const [finalBestNightRate, finalLikelyNightRate, finalWorstNightRate] =
+    [rawBestNight, likelyNightRate, rawWorstNight].sort((a, b) => b - a);
+
+  // Project dates from sorted rates (higher rate → fewer days → earlier date)
+  let optDay    = projectDate(finalBestDayRate,    remDay,   simpleDay);
+  let likelyDay = projectDate(finalLikelyDayRate,  remDay,   simpleDay);
+  let pestDay   = projectDate(finalWorstDayRate,   remDay,   simpleDay);
+
+  let optNight    = projectDate(finalBestNightRate,   remNight, simpleNight);
+  let likelyNight = projectDate(finalLikelyNightRate, remNight, simpleNight);
+  let pestNight   = projectDate(finalWorstNightRate,  remNight, simpleNight);
+
+  // Belt-and-suspenders: enforce best (earliest) ≤ likely ≤ worst (latest)
+  // using a three-value insertion sort on the timestamps.
+  function ensureDateOrder(a, b, c) {
+    function ts(d) { return d instanceof Date ? d.getTime() : Infinity; }
+    if (ts(a) > ts(b)) [a, b] = [b, a];
+    if (ts(b) > ts(c)) [b, c] = [c, b];
+    if (ts(a) > ts(b)) [a, b] = [b, a];
+    return [a, b, c];
+  }
+
+  [optDay,   likelyDay,   pestDay  ] = ensureDateOrder(optDay,   likelyDay,   pestDay);
+  [optNight, likelyNight, pestNight] = ensureDateOrder(optNight, likelyNight, pestNight);
+
+  function dStr(d) { return d instanceof Date ? fmtDateObj(d) : String(d); }
+  console.log(
+    '[ETA] day   rates best=%.2f likely=%.2f worst=%.2f | dates best=%s likely=%s worst=%s',
+    finalBestDayRate, finalLikelyDayRate, finalWorstDayRate,
+    dStr(optDay), dStr(likelyDay), dStr(pestDay)
+  );
+  console.log(
+    '[ETA] night rates best=%.2f likely=%.2f worst=%.2f | dates best=%s likely=%s worst=%s',
+    finalBestNightRate, finalLikelyNightRate, finalWorstNightRate,
+    dStr(optNight), dStr(likelyNight), dStr(pestNight)
+  );
 
   function sameDateStr(a, b) {
     if (a instanceof Date && b instanceof Date) return a.toDateString() === b.toDateString();
     return a === b;
   }
-
-  const optDay    = projectDate(bestDayRate,    remDay,   simpleDay);
-  const pestDay   = projectDate(worstDayRate,   remDay,   simpleDay);
-  const optNight  = projectDate(bestNightRate,  remNight, simpleNight);
-  const pestNight = projectDate(worstNightRate, remNight, simpleNight);
 
   return {
     day: {
