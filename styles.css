@@ -806,6 +806,71 @@ input::placeholder { color: var(--placeholder); }
 .confidence-fair { background: var(--conf-fair-bg); color: var(--conf-fair-color); }
 .confidence-good { background: var(--conf-good-bg); color: var(--conf-good-color); }
 
+/* --- ETA three-scenario display --- */
+.eta-goal {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.eta-goal:last-of-type { margin-bottom: 0; }
+
+.eta-scenarios {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 2px;
+}
+
+.eta-scenario {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.eta-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.eta-dot-best   { background: #52b788; }
+.eta-dot-likely { background: #f5a623; }
+.eta-dot-worst  { background: #c0392b; }
+
+.eta-scenario-label {
+  font-size: 0.78rem;
+  color: var(--text-light);
+  min-width: 68px;
+  flex-shrink: 0;
+}
+
+.eta-scenario-date {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.eta-range-note {
+  font-size: 0.72rem;
+  color: var(--text-light);
+  font-style: italic;
+  margin: 1px 0 0 15px;
+}
+
+.eta-delayed {
+  font-size: 0.76rem;
+  color: #c0392b;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+@media (prefers-color-scheme: dark) {
+  .eta-delayed { color: #e57373; }
+}
+
 /* ---- Progress Chart ---- */
 #progress-chart {
   display: block;

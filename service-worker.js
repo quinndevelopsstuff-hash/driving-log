@@ -1,4 +1,4 @@
-// v1.2.2 — increment this comment on every deploy to guarantee the browser detects a byte change
+// v1.2.3 — increment this comment on every deploy to guarantee the browser detects a byte change
 'use strict';
 
 const CACHE_NAME = 'drive-log-v1';

@@ -168,17 +168,15 @@ function calcStreak() {
 }
 
 // ---- ETA calculation ----
-
-// Hybrid algorithm that improves accuracy as session count grows.
 //
-// Tier 1 (1–2 sessions): simple average — total minutes ÷ days elapsed.
-// Tier 2 (3–6 sessions): weighted moving average of the last 3 sessions
-//   (weights 3/2/1 newest-to-oldest), normalised over the days covered.
-// Tier 3 (7+ sessions): 7-day rolling window — sum of minutes in the last
-//   7 calendar days divided by 7.
+// calculateEstimatedCompletion() returns per-goal three-scenario projections:
+//   Optimistic  — rate from the single best  7-day rolling window in history
+//   Likely      — weighted 4-week average (most-recent week ×4, then ×3, ×2, ×1)
+//   Pessimistic — rate from the single worst 7-day rolling window with ≥1 session
 //
-// Returns { dayEta, nightEta, dayRate, nightRate, confidence, sessionCount }
-// where *Eta is a Date, 'achieved', or null (rate = 0 → no projection).
+// Returns { day, night, confidence, sessionCount, enoughDataForRange }
+// where day/night = { optimistic, likely, pessimistic, complete, collapsed }
+// and each date is a Date object, 'achieved', 'past', or null.
 function calculateEstimatedCompletion() {
   const n = sessions.length;
   if (n === 0) return null;
@@ -187,6 +185,7 @@ function calculateEstimatedCompletion() {
 
   const today = new Date();
   today.setHours(12, 0, 0, 0);
+  const todayMs = today.getTime();
 
   const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date));
 
@@ -194,87 +193,125 @@ function calculateEstimatedCompletion() {
     return new Date(dateStr + 'T12:00:00');
   }
 
-  function calDays(a, b) {
-    return Math.max(0, Math.round((b - a) / 86400000));
-  }
+  const firstMs = noon(sorted[0].date).getTime();
+  const elapsed = Math.max(1, Math.round((todayMs - firstMs) / 86400000));
 
-  function projectDate(ratePerDay, remainingMins) {
+  const simpleDay   = totalDay   / elapsed;
+  const simpleNight = totalNight / elapsed;
+
+  function projectDate(rate, remainingMins, fallback) {
     if (remainingMins <= 0) return 'achieved';
-    if (ratePerDay <= 0)    return null;
+    const r = rate > 0 ? rate : (fallback > 0 ? fallback : 0);
+    if (r <= 0) return null;
     const d = new Date(today);
-    d.setDate(d.getDate() + Math.ceil(remainingMins / ratePerDay));
+    d.setDate(d.getDate() + Math.ceil(remainingMins / r));
+    if (d <= today) return 'past';
     return d;
   }
 
-  let dayRate   = 0;
-  let nightRate = 0;
-  let tier;
-
-  if (n <= 2) {
-    // ── Tier 1: simple average rate ────────────────────────────────────────
-    tier = 1;
-    const elapsed = Math.max(1, calDays(noon(sorted[0].date), today));
-    dayRate   = totalDay   / elapsed;
-    nightRate = totalNight / elapsed;
-
-  } else if (n <= 6) {
-    // ── Tier 2: weighted moving average of last 3 sessions ─────────────────
-    // Weights [1, 2, 3] map to [oldest, middle, most-recent] of the window.
-    tier = 2;
-    const last3  = sorted.slice(-3);
-    const W      = [1, 2, 3];
-    const wDay   = last3.reduce((s, sess, i) => s + W[i] * sess.dayMinutes,   0);
-    const wNight = last3.reduce((s, sess, i) => s + W[i] * sess.nightMinutes, 0);
-    // Divide by days since the oldest session in the window to get a
-    // weighted daily rate (recent-heavy sessions raise the projection).
-    const span = Math.max(1, calDays(noon(last3[0].date), today));
-    dayRate   = wDay   / span;
-    nightRate = wNight / span;
-
-  } else {
-    // ── Tier 3: 7-day rolling average ──────────────────────────────────────
-    tier = 3;
-    const cutoff = new Date(today);
-    cutoff.setDate(today.getDate() - 6); // window: 6 days ago → today (7 days)
-
-    let wDay = 0, wNight = 0;
-    for (const s of sessions) {
-      if (noon(s.date) >= cutoff) {
-        wDay   += s.dayMinutes;
-        wNight += s.nightMinutes;
+  // Slide a 7-day window over all dates from (first session) to (today),
+  // returning one rate per window that contained at least one session.
+  function allWindowRates(type) {
+    const rates = [];
+    for (let endMs = firstMs + 6 * 86400000; endMs <= todayMs; endMs += 86400000) {
+      const startMs = endMs - 6 * 86400000;
+      let sum = 0, hasSess = false;
+      for (const s of sorted) {
+        const ms = noon(s.date).getTime();
+        if (ms >= startMs && ms <= endMs) {
+          sum += type === 'day' ? s.dayMinutes : s.nightMinutes;
+          hasSess = true;
+        }
       }
+      if (hasSess) rates.push(sum / 7);
     }
-    dayRate   = wDay   / 7;
-    nightRate = wNight / 7;
-
-    // Rolling window is empty (no sessions in the last 7 days — e.g. user
-    // hasn't driven recently). Fall back to the overall simple average so
-    // rates never collapse to zero just because of a gap in activity.
-    if (dayRate === 0 && nightRate === 0) {
-      const elapsed = Math.max(1, calDays(noon(sorted[0].date), today));
-      dayRate   = totalDay   / elapsed;
-      nightRate = totalNight / elapsed;
-    }
+    return rates;
   }
 
-  const debugElapsed = calDays(noon(sorted[0].date), today);
-  console.log(
-    '[ETA] tier=%d  sessions=%d  elapsed_days=%d  dayRate=%.2f min/day  nightRate=%.2f min/day',
-    tier, n, debugElapsed, dayRate, nightRate
-  );
+  // Weighted average of the last 4 calendar weeks (most-recent week = weight 4).
+  function weightedFourWeekRate(type) {
+    let wSum = 0, wTotal = 0;
+    for (let w = 0; w < 4; w++) {
+      const weight  = 4 - w;
+      const endMs   = todayMs - w * 7 * 86400000;
+      const startMs = endMs   - 6 * 86400000;
+      let sum = 0;
+      for (const s of sessions) {
+        const ms = noon(s.date).getTime();
+        if (ms >= startMs && ms <= endMs) {
+          sum += type === 'day' ? s.dayMinutes : s.nightMinutes;
+        }
+      }
+      wSum   += (sum / 7) * weight;
+      wTotal += weight;
+    }
+    const r = wSum / wTotal;
+    return r > 0 ? r : (type === 'day' ? simpleDay : simpleNight);
+  }
 
   const remDay   = Math.max(0, DAY_TARGET_MINS   - totalDay);
   const remNight = Math.max(0, NIGHT_TARGET_MINS - totalNight);
 
+  const likelyDayRate   = weightedFourWeekRate('day');
+  const likelyNightRate = weightedFourWeekRate('night');
+
+  const confidence = n <= 2 ? 'low' : n <= 6 ? 'fair' : 'good';
+
+  const likelyDay   = projectDate(likelyDayRate,   remDay,   simpleDay);
+  const likelyNight = projectDate(likelyNightRate, remNight, simpleNight);
+
+  if (n < 3) {
+    return {
+      day:   { likely: likelyDay,   complete: remDay   <= 0 },
+      night: { likely: likelyNight, complete: remNight <= 0 },
+      confidence,
+      sessionCount: n,
+      enoughDataForRange: false,
+    };
+  }
+
+  const dayWins   = allWindowRates('day');
+  const nightWins = allWindowRates('night');
+
+  const bestDayRate    = dayWins.length   ? Math.max(...dayWins)                    : simpleDay;
+  const worstDayArr    = dayWins.filter(r => r > 0);
+  const worstDayRate   = worstDayArr.length  ? Math.min(...worstDayArr)             : simpleDay;
+
+  const bestNightRate  = nightWins.length ? Math.max(...nightWins)                  : simpleNight;
+  const worstNightArr  = nightWins.filter(r => r > 0);
+  const worstNightRate = worstNightArr.length ? Math.min(...worstNightArr)          : simpleNight;
+
+  function sameDateStr(a, b) {
+    if (a instanceof Date && b instanceof Date) return a.toDateString() === b.toDateString();
+    return a === b;
+  }
+
+  const optDay    = projectDate(bestDayRate,    remDay,   simpleDay);
+  const pestDay   = projectDate(worstDayRate,   remDay,   simpleDay);
+  const optNight  = projectDate(bestNightRate,  remNight, simpleNight);
+  const pestNight = projectDate(worstNightRate, remNight, simpleNight);
+
   return {
-    dayEta:       projectDate(dayRate,   remDay),
-    nightEta:     projectDate(nightRate, remNight),
-    dayRate,
-    nightRate,
-    confidence:   tier === 1 ? 'low' : tier === 2 ? 'fair' : 'good',
+    day: {
+      optimistic:  optDay,
+      likely:      likelyDay,
+      pessimistic: pestDay,
+      complete:    remDay   <= 0,
+      collapsed:   sameDateStr(optDay, pestDay),
+    },
+    night: {
+      optimistic:  optNight,
+      likely:      likelyNight,
+      pessimistic: pestNight,
+      complete:    remNight <= 0,
+      collapsed:   sameDateStr(optNight, pestNight),
+    },
+    confidence,
     sessionCount: n,
+    enoughDataForRange: true,
   };
 }
+
 
 // ---- History grouping helpers ----
 
@@ -410,18 +447,7 @@ function renderETA() {
     return;
   }
 
-  const { dayEta, nightEta, dayRate, nightRate, confidence, sessionCount } = data;
-
-  function etaCell(eta) {
-    if (eta === 'achieved') return '<span class="eta-achieved">Goal reached! &#x1F389;</span>';
-    if (!eta)               return '<span class="eta-no-rate">Log another session to see an estimate</span>';
-    return fmtDateObj(eta);
-  }
-
-  function rateCell(ratePerDay) {
-    if (ratePerDay <= 0) return '';
-    return `<span class="eta-rate">${fmtHours(ratePerDay)}h/day</span>`;
-  }
+  const { confidence, sessionCount } = data;
 
   const CONF_LABELS = {
     low:  `Low confidence &middot; ${sessionCount} session${sessionCount === 1 ? '' : 's'} logged`,
@@ -429,21 +455,63 @@ function renderETA() {
     good: `Good confidence &middot; ${sessionCount} sessions logged`,
   };
 
-  const dayRow = `<div class="eta-row">` +
-    `<span class="eta-type day-type">Day</span>` +
-    `<span class="eta-date">${etaCell(dayEta)}</span>` +
-    rateCell(dayRate) +
-    `</div>`;
+  function etaDateStr(eta) {
+    if (!eta)           return '<span class="eta-no-rate">—</span>';
+    if (eta === 'past') return '<span class="eta-delayed">At current pace, goal may be delayed — drive more frequently!</span>';
+    return fmtDateObj(eta);
+  }
 
-  const nightRow = `<div class="eta-row">` +
-    `<span class="eta-type night-type">Night</span>` +
-    `<span class="eta-date">${etaCell(nightEta)}</span>` +
-    rateCell(nightRate) +
-    `</div>`;
+  function scenarioRow(dotClass, label, eta) {
+    return `<div class="eta-scenario">` +
+      `<span class="eta-dot ${dotClass}" aria-hidden="true"></span>` +
+      `<span class="eta-scenario-label">${label}</span>` +
+      `<span class="eta-scenario-date">${etaDateStr(eta)}</span>` +
+      `</div>`;
+  }
 
-  el.innerHTML = dayRow + nightRow +
+  function goalHTML(label, typeClass, goalData) {
+    if (goalData.complete) {
+      return `<div class="eta-goal">` +
+        `<span class="eta-type ${typeClass}">${label}</span>` +
+        `<span class="eta-achieved">&#x2705; Goal reached!</span>` +
+        `</div>`;
+    }
+
+    if (!data.enoughDataForRange) {
+      return `<div class="eta-goal">` +
+        `<span class="eta-type ${typeClass}">${label}</span>` +
+        `<div class="eta-scenarios">` +
+          scenarioRow('eta-dot-likely', 'Most likely', goalData.likely) +
+          `<p class="eta-range-note">Log more sessions to see best &amp; worst case estimates</p>` +
+        `</div>` +
+        `</div>`;
+    }
+
+    if (goalData.collapsed) {
+      return `<div class="eta-goal">` +
+        `<span class="eta-type ${typeClass}">${label}</span>` +
+        `<div class="eta-scenarios">` +
+          scenarioRow('eta-dot-likely', 'Most likely', goalData.likely) +
+          `<p class="eta-range-note">Consistent pace &mdash; keep it up!</p>` +
+        `</div>` +
+        `</div>`;
+    }
+
+    return `<div class="eta-goal">` +
+      `<span class="eta-type ${typeClass}">${label}</span>` +
+      `<div class="eta-scenarios">` +
+        scenarioRow('eta-dot-best',   'Best case',   goalData.optimistic) +
+        scenarioRow('eta-dot-likely', 'Most likely', goalData.likely) +
+        scenarioRow('eta-dot-worst',  'Worst case',  goalData.pessimistic) +
+      `</div>` +
+      `</div>`;
+  }
+
+  el.innerHTML =
+    goalHTML('Day', 'day-type', data.day) +
+    goalHTML('Night', 'night-type', data.night) +
     `<div class="eta-confidence">` +
-    `<span class="confidence-badge confidence-${confidence}">${CONF_LABELS[confidence]}</span>` +
+      `<span class="confidence-badge confidence-${confidence}">${CONF_LABELS[confidence]}</span>` +
     `</div>`;
 }
 
