@@ -814,11 +814,282 @@ function refreshTip() {
   renderTip();
 }
 
+// ---- Render: Confidence Bars + Drift Chart ----
+
+// Computes the weighted-4-week "most likely" completion for any session subset.
+// Returns { dayDays, nightDays } — days from today, 0 if achieved, null if unprojectible.
+function computeLikelyCompletion(sessSubset) {
+  if (!sessSubset.length) return null;
+
+  const totalDay   = sessSubset.reduce((s, x) => s + x.dayMinutes,   0);
+  const totalNight = sessSubset.reduce((s, x) => s + x.nightMinutes, 0);
+
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const todayMs = today.getTime();
+
+  const sorted = [...sessSubset].sort((a, b) => a.date.localeCompare(b.date));
+  function noon(str) { return new Date(str + 'T12:00:00').getTime(); }
+
+  const firstMs = noon(sorted[0].date);
+  const elapsed = Math.max(1, Math.round((todayMs - firstMs) / 86400000));
+  const simpleDay   = totalDay   / elapsed;
+  const simpleNight = totalNight / elapsed;
+
+  function wfwRate(type) {
+    let wSum = 0, wTotal = 0;
+    for (let w = 0; w < 4; w++) {
+      const weight  = 4 - w;
+      const endMs   = todayMs - w * 7 * 86400000;
+      const startMs = endMs   - 6 * 86400000;
+      let sum = 0;
+      for (const s of sorted) {
+        const ms = noon(s.date);
+        if (ms >= startMs && ms <= endMs) sum += type === 'day' ? s.dayMinutes : s.nightMinutes;
+      }
+      wSum += (sum / 7) * weight; wTotal += weight;
+    }
+    const r = wSum / wTotal;
+    return r > 0 ? r : (type === 'day' ? simpleDay : simpleNight);
+  }
+
+  const remDay   = Math.max(0, DAY_TARGET_MINS   - totalDay);
+  const remNight = Math.max(0, NIGHT_TARGET_MINS - totalNight);
+
+  function toDays(rate, remaining) {
+    if (remaining <= 0) return 0;
+    if (rate <= 0)      return null;
+    return Math.ceil(remaining / rate);
+  }
+
+  return {
+    dayDays:   toDays(wfwRate('day'),   remDay),
+    nightDays: toDays(wfwRate('night'), remNight),
+  };
+}
+
+function renderConfidenceBars() {
+  const el   = document.getElementById('eta-bars');
+  const data = calculateEstimatedCompletion();
+
+  if (!data || !data.enoughDataForRange) {
+    el.innerHTML = '<p class="eta-bars-placeholder">Log more sessions to see confidence and drift data</p>';
+    return;
+  }
+
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+
+  function daysFrom(d) {
+    if (!(d instanceof Date)) return 0;
+    return Math.max(0, Math.round((d.getTime() - today.getTime()) / 86400000));
+  }
+
+  function barHTML(typeClass, label, color, goalData) {
+    const header = `<div class="eta-bar-header">` +
+      `<span class="eta-bar-type-label ${typeClass}">${label}</span>`;
+
+    if (goalData.complete) {
+      return `<div class="eta-bar-section" style="--eta-bar-color:${color}">` +
+        header + `</div>` +
+        `<p class="eta-bar-complete">&#x2705; Goal reached &#x2014; no estimate needed</p>` +
+        `</div>`;
+    }
+
+    const bestDays   = daysFrom(goalData.optimistic);
+    const likelyDays = daysFrom(goalData.likely);
+    const worstDays  = daysFrom(goalData.pessimistic);
+
+    if (goalData.collapsed || bestDays === worstDays) {
+      return `<div class="eta-bar-section" style="--eta-bar-color:${color}">` +
+        header + `<span class="eta-bar-pct">100%</span></div>` +
+        `<div class="eta-bar-track">` +
+          `<div class="eta-bar-fill" style="width:100%"></div>` +
+          `<div class="eta-bar-dot" style="left:50%"></div>` +
+        `</div>` +
+        `<span class="eta-bar-sublabel">Perfect consistency!</span>` +
+        `</div>`;
+    }
+
+    const confPct  = Math.round(Math.max(0, Math.min(100,
+      (1 - (worstDays - bestDays) / worstDays) * 100)));
+    const fillPct  = worstDays ? Math.round(bestDays   / worstDays * 100) : 100;
+    const dotPct   = worstDays ? Math.round(likelyDays / worstDays * 100) : 50;
+    const sublabel = confPct > 70 ? 'Tight estimate' : confPct >= 40 ? 'Moderate' : 'Uncertain';
+
+    return `<div class="eta-bar-section" style="--eta-bar-color:${color}">` +
+      header + `<span class="eta-bar-pct">${confPct}%</span></div>` +
+      `<div class="eta-bar-track">` +
+        `<div class="eta-bar-fill" style="width:${fillPct}%"></div>` +
+        `<div class="eta-bar-dot" style="left:${dotPct}%"></div>` +
+      `</div>` +
+      `<span class="eta-bar-sublabel">${sublabel}</span>` +
+      `</div>`;
+  }
+
+  el.innerHTML = `<div class="eta-bars-row">` +
+    barHTML('day-type',   'Day',   '#52b788', data.day) +
+    barHTML('night-type', 'Night', '#0d9498', data.night) +
+    `</div>`;
+}
+
+function renderDriftChart() {
+  const canvas      = document.getElementById('drift-chart');
+  const placeholder = document.getElementById('eta-drift-placeholder');
+  const section     = document.getElementById('eta-drift-section');
+  if (!canvas) return;
+
+  const n = sessions.length;
+
+  if (n < 3) {
+    canvas.style.display = 'none';
+    if (placeholder) placeholder.hidden = false;
+    return;
+  }
+
+  canvas.style.display = 'block';
+  if (placeholder) placeholder.hidden = true;
+
+  const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date));
+
+  // One data point per cumulative session subset
+  const pts = [];
+  for (let i = 1; i <= n; i++) {
+    const est = computeLikelyCompletion(sorted.slice(0, i));
+    pts.push(est || { dayDays: null, nightDays: null });
+  }
+
+  // Canvas sizing
+  const dpr = window.devicePixelRatio || 1;
+  const W   = canvas.offsetWidth || (section ? section.clientWidth : 0) || 300;
+  const H   = 120;
+  canvas.width        = W * dpr;
+  canvas.height       = H * dpr;
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const PAD_L = 42;
+  const PAD_R = 12;
+  const PAD_T = 20;
+  const PAD_B = 18;
+  const plotW = W - PAD_L - PAD_R;
+  const plotH = H - PAD_T  - PAD_B;
+
+  // Y range
+  const allDays = pts.flatMap(p => [p.dayDays, p.nightDays]).filter(v => v !== null);
+  const maxDays = allDays.length ? Math.max(...allDays) : 100;
+
+  function xPos(i) { // i = 0-based index
+    return PAD_L + (n > 1 ? (i / (n - 1)) * plotW : plotW / 2);
+  }
+
+  function yPos(days) {
+    if (days === null) return null;
+    return PAD_T + (1 - Math.max(0, Math.min(maxDays, days)) / maxDays) * plotH;
+  }
+
+  // Resolve CSS colour variables for the current theme
+  const cs        = getComputedStyle(document.documentElement);
+  const colLight  = (cs.getPropertyValue('--text-light') || '#52796f').trim();
+  const colBorder = (cs.getPropertyValue('--border')     || '#b7dfc4').trim();
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Y-axis gridlines + month labels
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const today  = new Date(); today.setHours(12, 0, 0, 0);
+
+  const rawStep    = maxDays / 4;
+  const tickStep   = Math.max(7, (Math.round(rawStep / 30) || 1) * 30);
+
+  ctx.font         = '10px system-ui,-apple-system,sans-serif';
+  ctx.textBaseline = 'middle';
+
+  for (let d = 0; d <= maxDays; d += tickStep) {
+    const y = yPos(d);
+    if (y === null) continue;
+    const labelDate = new Date(today.getTime() + d * 86400000);
+    const label     = d === 0 ? 'Now' : MONTHS[labelDate.getMonth()];
+
+    ctx.fillStyle  = colLight;
+    ctx.textAlign  = 'right';
+    ctx.fillText(label, PAD_L - 5, y);
+
+    ctx.beginPath();
+    ctx.strokeStyle = colBorder;
+    ctx.lineWidth   = 0.5;
+    ctx.setLineDash([]);
+    ctx.moveTo(PAD_L, y); ctx.lineTo(PAD_L + plotW, y);
+    ctx.stroke();
+  }
+
+  // Y=0 dashed line (goal-achieved threshold)
+  const y0 = yPos(0);
+  if (y0 !== null) {
+    ctx.beginPath();
+    ctx.strokeStyle = colLight;
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.moveTo(PAD_L, y0); ctx.lineTo(PAD_L + plotW, y0);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Data lines
+  function drawLine(color, key) {
+    ctx.beginPath();
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    ctx.setLineDash([]);
+    let started = false;
+    for (let i = 0; i < pts.length; i++) {
+      const x = xPos(i);
+      const y = yPos(pts[i][key]);
+      if (y === null) { started = false; continue; }
+      if (!started) { ctx.moveTo(x, y); started = true; }
+      else           { ctx.lineTo(x, y); }
+    }
+    ctx.stroke();
+  }
+
+  drawLine('#52b788', 'dayDays');
+  drawLine('#0d9498', 'nightDays');
+
+  // X-axis session-number labels
+  ctx.fillStyle    = colLight;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'top';
+  for (let i = 0; i < n; i++) {
+    const num = i + 1;
+    if (num === 1 || num % 5 === 0 || num === n) {
+      ctx.fillText(String(num), xPos(i), H - PAD_B + 3);
+    }
+  }
+
+  // Legend (top-right)
+  const LX = W - PAD_R;
+  const LY = 10;
+  ctx.font         = '10px system-ui,-apple-system,sans-serif';
+  ctx.textBaseline = 'middle';
+
+  ctx.strokeStyle = '#52b788'; ctx.lineWidth = 2; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(LX - 76, LY); ctx.lineTo(LX - 62, LY); ctx.stroke();
+  ctx.fillStyle = '#52b788'; ctx.textAlign = 'left';
+  ctx.fillText('Day', LX - 59, LY);
+
+  ctx.strokeStyle = '#0d9498';
+  ctx.beginPath(); ctx.moveTo(LX - 32, LY); ctx.lineTo(LX - 18, LY); ctx.stroke();
+  ctx.fillStyle = '#0d9498';
+  ctx.fillText('Night', LX - 15, LY);
+}
+
 function renderAll() {
   renderDashboard();
   renderStreak();
   renderMilestoneBadges();
   renderETA();
+  renderConfidenceBars();
+  renderDriftChart();
   renderChart();
   renderHistory();
   renderSupervisorStats();
