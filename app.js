@@ -508,7 +508,7 @@ function renderETA() {
     if (goalData.complete) {
       return `<div class="eta-goal">` +
         `<span class="eta-type ${typeClass}">${label}</span>` +
-        `<span class="eta-achieved">&#x2705; Goal reached!</span>` +
+        `<span class="eta-achieved"><svg width="22" height="22" viewBox="0 0 22 22" style="vertical-align:middle;margin-right:6px" aria-hidden="true"><circle cx="11" cy="11" r="11" fill="#52b788"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Goal reached!</span>` +
         `</div>`;
     }
 
@@ -892,7 +892,7 @@ function renderConfidenceBars() {
     if (goalData.complete) {
       return `<div class="eta-bar-section" style="--eta-bar-color:${color}">` +
         header + `</div>` +
-        `<p class="eta-bar-complete">&#x2705; Goal reached &#x2014; no estimate needed</p>` +
+        `<p class="eta-bar-complete"><svg width="22" height="22" viewBox="0 0 22 22" style="vertical-align:middle;margin-right:6px" aria-hidden="true"><circle cx="11" cy="11" r="11" fill="#52b788"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Goal reached &#x2014; no estimate needed</p>` +
         `</div>`;
     }
 
@@ -911,17 +911,25 @@ function renderConfidenceBars() {
         `</div>`;
     }
 
+    // Fix 1: denominator is worstDays (distance from today to worst case).
+    // Example: gap=18d, worst=90d → (1 - 18/90)*100 = 80% (Tight estimate).
+    //          gap=18d, worst=21d → (1 - 18/21)*100 = 14% (Uncertain).
+    const gap      = worstDays - bestDays;
     const confPct  = Math.round(Math.max(0, Math.min(100,
-      (1 - (worstDays - bestDays) / worstDays) * 100)));
+      (1 - gap / worstDays) * 100)));
+    // Fill covers 0→bestDays on the 0→worstDays track.
     const fillPct  = worstDays ? Math.round(bestDays   / worstDays * 100) : 100;
-    const dotPct   = worstDays ? Math.round(likelyDays / worstDays * 100) : 50;
+    // Fix 2: dot sits at the likelyDays position on the same 0→worstDays scale,
+    // clamped so the 12px dot never overflows either edge of the track.
+    const rawDotPct = worstDays ? (likelyDays / worstDays * 100) : 50;
+    const dotPct   = Math.max(0, Math.min(100, rawDotPct));
     const sublabel = confPct > 70 ? 'Tight estimate' : confPct >= 40 ? 'Moderate' : 'Uncertain';
 
     return `<div class="eta-bar-section" style="--eta-bar-color:${color}">` +
       header + `<span class="eta-bar-pct">${confPct}%</span></div>` +
       `<div class="eta-bar-track">` +
         `<div class="eta-bar-fill" style="width:${fillPct}%"></div>` +
-        `<div class="eta-bar-dot" style="left:${dotPct}%"></div>` +
+        `<div class="eta-bar-dot" style="left:clamp(6px,${dotPct.toFixed(1)}%,calc(100% - 6px))"></div>` +
       `</div>` +
       `<span class="eta-bar-sublabel">${sublabel}</span>` +
       `</div>`;
@@ -1055,15 +1063,52 @@ function renderDriftChart() {
   drawLine('#52b788', 'dayDays');
   drawLine('#0d9498', 'nightDays');
 
-  // X-axis session-number labels
+  // X-axis session-number labels — enforce 28px minimum gap to prevent overlap.
+  // Always show session 1 and session N; show every-5th only if it fits.
   ctx.fillStyle    = colLight;
-  ctx.textAlign    = 'center';
   ctx.textBaseline = 'top';
-  for (let i = 0; i < n; i++) {
-    const num = i + 1;
-    if (num === 1 || num % 5 === 0 || num === n) {
-      ctx.fillText(String(num), xPos(i), H - PAD_B + 3);
+
+  const MIN_LABEL_GAP = 28;
+  const labelY        = H - PAD_B + 3;
+
+  // Candidate indices: first, every-5th, last
+  const candidates = new Set([0]);
+  for (let i = 0; i < n; i++) { if ((i + 1) % 5 === 0) candidates.add(i); }
+  candidates.add(n - 1);
+  const sortedCandidates = [...candidates].sort((a, b) => a - b);
+
+  const drawnX = []; // x-positions of labels already committed to canvas
+
+  for (let ci = 0; ci < sortedCandidates.length; ci++) {
+    const i      = sortedCandidates[ci];
+    const x      = xPos(i);
+    const isFirst = i === 0;
+    const isLast  = i === n - 1;
+
+    if (isFirst) {
+      ctx.textAlign = 'center';
+      ctx.fillText(String(i + 1), x, labelY);
+      drawnX.push(x);
+      continue;
     }
+
+    if (isLast) {
+      // Always draw; right-align if the label would overflow the right canvas edge
+      const nearEdge = x + 10 > W - PAD_R;
+      ctx.textAlign  = nearEdge ? 'right' : 'center';
+      ctx.fillText(String(i + 1), nearEdge ? W - PAD_R : x, labelY);
+      ctx.textAlign  = 'center';
+      continue;
+    }
+
+    // Intermediate: skip if too close to the previous drawn label or to the last label
+    const tooCloseLeft  = drawnX.length > 0 && x - drawnX[drawnX.length - 1] < MIN_LABEL_GAP;
+    const tooCloseRight = xPos(n - 1) - x < MIN_LABEL_GAP;
+    if (tooCloseLeft || tooCloseRight) continue;
+
+    ctx.textAlign = 'center';
+    ctx.fillText(String(i + 1), x, labelY);
+    drawnX.push(x);
   }
 
   // Legend (top-right)
