@@ -1521,7 +1521,7 @@ function copyQRJSON() {
   });
 }
 
-document.getElementById('qr-btn').addEventListener('click', showQRModal);
+document.getElementById('qr-btn')?.addEventListener('click', showQRModal);
 
 // ---- Export / Import ----
 
