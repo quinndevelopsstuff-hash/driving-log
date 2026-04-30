@@ -11,11 +11,52 @@ const MILESTONES = [
   { pct: 100, label: 'Goal reached!'  },
 ];
 
+const DRIVING_TIPS = [
+  'Keep your eyes scanning 10–15 seconds ahead of your vehicle.',
+  'Check your mirrors every 5–8 seconds while driving.',
+  'Always signal at least 3 seconds before turning or changing lanes.',
+  'Maintain a 3-second following distance in good conditions — more in rain.',
+  'Adjust your mirrors before every drive, not after you start moving.',
+  'Slow down and increase following distance in wet or foggy conditions.',
+  'Never drive when tired — fatigue impairs reaction time as much as alcohol.',
+  'Look through the turn, not at it — your car follows your eyes.',
+  'Come to a complete stop at stop signs — a rolling stop is still a violation.',
+  'Use the SMOG method: Signal, Mirror, Over-the-shoulder, Go.',
+  'Brake early and gently — it gives drivers behind you more reaction time.',
+  'Keep both hands on the wheel in the 9 and 3 o\'clock position.',
+  'Night driving requires more following distance — headlights only cover so far.',
+  'In a skid, steer in the direction you want to go, don\'t brake suddenly.',
+  'Always come to a stop before looking both ways at a stop sign.',
+  'Scan intersections even on green — not everyone stops for red.',
+  'Avoid driving in another driver\'s blind spot on the highway.',
+  'When merging onto a highway, match the speed of traffic before entering.',
+  'Park parallel to the curb within 12 inches when parallel parking.',
+  'After driving in heavy rain, lightly tap your brakes to dry them out.',
+];
+
+let currentTipIndex = Math.floor(Math.random() * DRIVING_TIPS.length);
+
+const MILESTONE_NOTIFICATIONS = [
+  { type: 'day',   threshold: DAY_TARGET_MINS   * 0.25, key: 'day-25',    msg: "You've logged 25% of your day hours! 🌱" },
+  { type: 'day',   threshold: DAY_TARGET_MINS   * 0.50, key: 'day-50',    msg: 'Halfway through your day hours! ☀️' },
+  { type: 'day',   threshold: DAY_TARGET_MINS   * 0.75, key: 'day-75',    msg: '75% of day hours done — almost there! 🙌' },
+  { type: 'day',   threshold: DAY_TARGET_MINS,          key: 'day-100',   msg: 'Day hours complete! 40h done! 🎉' },
+  { type: 'night', threshold: NIGHT_TARGET_MINS * 0.25, key: 'night-25',  msg: "You've logged 25% of your night hours! 🌙" },
+  { type: 'night', threshold: NIGHT_TARGET_MINS * 0.50, key: 'night-50',  msg: 'Halfway through your night hours! ⭐' },
+  { type: 'night', threshold: NIGHT_TARGET_MINS * 0.75, key: 'night-75',  msg: '75% of night hours done — so close! 🌟' },
+  { type: 'night', threshold: NIGHT_TARGET_MINS,        key: 'night-100', msg: 'Night hours complete! 10h done! 🎉' },
+];
+
 let sessions        = [];
 let editingId       = null;
 let barsAnimated    = false;
 let historyView     = 'all';
 let collapsedGroups = new Set();
+let pendingDelete     = null;
+let pendingDeleteTimer = null;
+let previousDayMinutes   = 0;
+let previousNightMinutes = 0;
+let dashboardAnimId      = 0;
 
 // ---- Persistence ----
 
@@ -102,18 +143,40 @@ function getSupervisorStats() {
     .sort((a, b) => b.total - a.total);
 }
 
-// ---- ETA calculation ----
+function calcStreak() {
+  if (!sessions.length) return 0;
 
-// Hybrid algorithm that improves accuracy as session count grows.
+  const today  = todayStr();
+  const dates  = [...new Set(sessions.map(s => s.date))].sort();
+  const last   = dates[dates.length - 1];
+  const todayMs = new Date(today + 'T12:00:00').getTime();
+  const lastMs  = new Date(last  + 'T12:00:00').getTime();
+
+  // Streak is broken if the most recent session was 2+ days ago
+  if (Math.round((todayMs - lastMs) / 86400000) > 1) return 0;
+
+  // Count consecutive days backwards from the most recent date
+  let streak = 1;
+  for (let i = dates.length - 2; i >= 0; i--) {
+    const gap = Math.round(
+      (new Date(dates[i + 1] + 'T12:00:00') - new Date(dates[i] + 'T12:00:00')) / 86400000
+    );
+    if (gap === 1) streak++;
+    else break;
+  }
+  return streak;
+}
+
+// ---- ETA calculation ----
 //
-// Tier 1 (1–2 sessions): simple average — total minutes ÷ days elapsed.
-// Tier 2 (3–6 sessions): weighted moving average of the last 3 sessions
-//   (weights 3/2/1 newest-to-oldest), normalised over the days covered.
-// Tier 3 (7+ sessions): 7-day rolling window — sum of minutes in the last
-//   7 calendar days divided by 7.
+// calculateEstimatedCompletion() returns per-goal three-scenario projections:
+//   Optimistic  — rate from the single best  7-day rolling window in history
+//   Likely      — weighted 4-week average (most-recent week ×4, then ×3, ×2, ×1)
+//   Pessimistic — rate from the single worst 7-day rolling window with ≥1 session
 //
-// Returns { dayEta, nightEta, dayRate, nightRate, confidence, sessionCount }
-// where *Eta is a Date, 'achieved', or null (rate = 0 → no projection).
+// Returns { day, night, confidence, sessionCount, enoughDataForRange }
+// where day/night = { optimistic, likely, pessimistic, complete, collapsed }
+// and each date is a Date object, 'achieved', 'past', or null.
 function calculateEstimatedCompletion() {
   const n = sessions.length;
   if (n === 0) return null;
@@ -122,6 +185,7 @@ function calculateEstimatedCompletion() {
 
   const today = new Date();
   today.setHours(12, 0, 0, 0);
+  const todayMs = today.getTime();
 
   const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date));
 
@@ -129,87 +193,160 @@ function calculateEstimatedCompletion() {
     return new Date(dateStr + 'T12:00:00');
   }
 
-  function calDays(a, b) {
-    return Math.max(0, Math.round((b - a) / 86400000));
-  }
+  const firstMs = noon(sorted[0].date).getTime();
+  const elapsed = Math.max(1, Math.round((todayMs - firstMs) / 86400000));
 
-  function projectDate(ratePerDay, remainingMins) {
+  const simpleDay   = totalDay   / elapsed;
+  const simpleNight = totalNight / elapsed;
+
+  function projectDate(rate, remainingMins, fallback) {
     if (remainingMins <= 0) return 'achieved';
-    if (ratePerDay <= 0)    return null;
+    const r = rate > 0 ? rate : (fallback > 0 ? fallback : 0);
+    if (r <= 0) return null;
     const d = new Date(today);
-    d.setDate(d.getDate() + Math.ceil(remainingMins / ratePerDay));
+    d.setDate(d.getDate() + Math.ceil(remainingMins / r));
+    if (d <= today) return 'past';
     return d;
   }
 
-  let dayRate   = 0;
-  let nightRate = 0;
-  let tier;
-
-  if (n <= 2) {
-    // ── Tier 1: simple average rate ────────────────────────────────────────
-    tier = 1;
-    const elapsed = Math.max(1, calDays(noon(sorted[0].date), today));
-    dayRate   = totalDay   / elapsed;
-    nightRate = totalNight / elapsed;
-
-  } else if (n <= 6) {
-    // ── Tier 2: weighted moving average of last 3 sessions ─────────────────
-    // Weights [1, 2, 3] map to [oldest, middle, most-recent] of the window.
-    tier = 2;
-    const last3  = sorted.slice(-3);
-    const W      = [1, 2, 3];
-    const wDay   = last3.reduce((s, sess, i) => s + W[i] * sess.dayMinutes,   0);
-    const wNight = last3.reduce((s, sess, i) => s + W[i] * sess.nightMinutes, 0);
-    // Divide by days since the oldest session in the window to get a
-    // weighted daily rate (recent-heavy sessions raise the projection).
-    const span = Math.max(1, calDays(noon(last3[0].date), today));
-    dayRate   = wDay   / span;
-    nightRate = wNight / span;
-
-  } else {
-    // ── Tier 3: 7-day rolling average ──────────────────────────────────────
-    tier = 3;
-    const cutoff = new Date(today);
-    cutoff.setDate(today.getDate() - 6); // window: 6 days ago → today (7 days)
-
-    let wDay = 0, wNight = 0;
-    for (const s of sessions) {
-      if (noon(s.date) >= cutoff) {
-        wDay   += s.dayMinutes;
-        wNight += s.nightMinutes;
+  // Slide a 7-day window over all dates from (first session) to (today),
+  // returning one rate per window that contained at least one session.
+  function allWindowRates(type) {
+    const rates = [];
+    for (let endMs = firstMs + 6 * 86400000; endMs <= todayMs; endMs += 86400000) {
+      const startMs = endMs - 6 * 86400000;
+      let sum = 0, hasSess = false;
+      for (const s of sorted) {
+        const ms = noon(s.date).getTime();
+        if (ms >= startMs && ms <= endMs) {
+          sum += type === 'day' ? s.dayMinutes : s.nightMinutes;
+          hasSess = true;
+        }
       }
+      if (hasSess) rates.push(sum / 7);
     }
-    dayRate   = wDay   / 7;
-    nightRate = wNight / 7;
-
-    // Rolling window is empty (no sessions in the last 7 days — e.g. user
-    // hasn't driven recently). Fall back to the overall simple average so
-    // rates never collapse to zero just because of a gap in activity.
-    if (dayRate === 0 && nightRate === 0) {
-      const elapsed = Math.max(1, calDays(noon(sorted[0].date), today));
-      dayRate   = totalDay   / elapsed;
-      nightRate = totalNight / elapsed;
-    }
+    return rates;
   }
 
-  const debugElapsed = calDays(noon(sorted[0].date), today);
-  console.log(
-    '[ETA] tier=%d  sessions=%d  elapsed_days=%d  dayRate=%.2f min/day  nightRate=%.2f min/day',
-    tier, n, debugElapsed, dayRate, nightRate
-  );
+  // Weighted average of the last 4 calendar weeks (most-recent week = weight 4).
+  function weightedFourWeekRate(type) {
+    let wSum = 0, wTotal = 0;
+    for (let w = 0; w < 4; w++) {
+      const weight  = 4 - w;
+      const endMs   = todayMs - w * 7 * 86400000;
+      const startMs = endMs   - 6 * 86400000;
+      let sum = 0;
+      for (const s of sessions) {
+        const ms = noon(s.date).getTime();
+        if (ms >= startMs && ms <= endMs) {
+          sum += type === 'day' ? s.dayMinutes : s.nightMinutes;
+        }
+      }
+      wSum   += (sum / 7) * weight;
+      wTotal += weight;
+    }
+    const r = wSum / wTotal;
+    return r > 0 ? r : (type === 'day' ? simpleDay : simpleNight);
+  }
 
   const remDay   = Math.max(0, DAY_TARGET_MINS   - totalDay);
   const remNight = Math.max(0, NIGHT_TARGET_MINS - totalNight);
 
+  const likelyDayRate   = weightedFourWeekRate('day');
+  const likelyNightRate = weightedFourWeekRate('night');
+
+  const confidence = n <= 2 ? 'low' : n <= 6 ? 'fair' : 'good';
+
+  if (n < 3) {
+    return {
+      day:   { likely: projectDate(likelyDayRate,   remDay,   simpleDay),   complete: remDay   <= 0 },
+      night: { likely: projectDate(likelyNightRate, remNight, simpleNight), complete: remNight <= 0 },
+      confidence,
+      sessionCount: n,
+      enoughDataForRange: false,
+    };
+  }
+
+  const dayWins   = allWindowRates('day');
+  const nightWins = allWindowRates('night');
+
+  const rawBestDay    = dayWins.length    ? Math.max(...dayWins)               : simpleDay;
+  const worstDayArr   = dayWins.filter(r => r > 0);
+  const rawWorstDay   = worstDayArr.length ? Math.min(...worstDayArr)          : simpleDay;
+
+  const rawBestNight  = nightWins.length  ? Math.max(...nightWins)             : simpleNight;
+  const worstNightArr = nightWins.filter(r => r > 0);
+  const rawWorstNight = worstNightArr.length ? Math.min(...worstNightArr)      : simpleNight;
+
+  // Sort all three rates descending so finalBest >= finalLikely >= finalWorst.
+  // The weighted-4-week likely rate can fall outside the window scan's range,
+  // so we must sort rather than assume the window extremes bracket the middle.
+  const [finalBestDayRate, finalLikelyDayRate, finalWorstDayRate] =
+    [rawBestDay, likelyDayRate, rawWorstDay].sort((a, b) => b - a);
+
+  const [finalBestNightRate, finalLikelyNightRate, finalWorstNightRate] =
+    [rawBestNight, likelyNightRate, rawWorstNight].sort((a, b) => b - a);
+
+  // Project dates from sorted rates (higher rate → fewer days → earlier date)
+  let optDay    = projectDate(finalBestDayRate,    remDay,   simpleDay);
+  let likelyDay = projectDate(finalLikelyDayRate,  remDay,   simpleDay);
+  let pestDay   = projectDate(finalWorstDayRate,   remDay,   simpleDay);
+
+  let optNight    = projectDate(finalBestNightRate,   remNight, simpleNight);
+  let likelyNight = projectDate(finalLikelyNightRate, remNight, simpleNight);
+  let pestNight   = projectDate(finalWorstNightRate,  remNight, simpleNight);
+
+  // Belt-and-suspenders: enforce best (earliest) ≤ likely ≤ worst (latest)
+  // using a three-value insertion sort on the timestamps.
+  function ensureDateOrder(a, b, c) {
+    function ts(d) { return d instanceof Date ? d.getTime() : Infinity; }
+    if (ts(a) > ts(b)) [a, b] = [b, a];
+    if (ts(b) > ts(c)) [b, c] = [c, b];
+    if (ts(a) > ts(b)) [a, b] = [b, a];
+    return [a, b, c];
+  }
+
+  [optDay,   likelyDay,   pestDay  ] = ensureDateOrder(optDay,   likelyDay,   pestDay);
+  [optNight, likelyNight, pestNight] = ensureDateOrder(optNight, likelyNight, pestNight);
+
+  function dStr(d) { return d instanceof Date ? fmtDateObj(d) : String(d); }
+  console.log(
+    '[ETA] day   rates best=%.2f likely=%.2f worst=%.2f | dates best=%s likely=%s worst=%s',
+    finalBestDayRate, finalLikelyDayRate, finalWorstDayRate,
+    dStr(optDay), dStr(likelyDay), dStr(pestDay)
+  );
+  console.log(
+    '[ETA] night rates best=%.2f likely=%.2f worst=%.2f | dates best=%s likely=%s worst=%s',
+    finalBestNightRate, finalLikelyNightRate, finalWorstNightRate,
+    dStr(optNight), dStr(likelyNight), dStr(pestNight)
+  );
+
+  function sameDateStr(a, b) {
+    if (a instanceof Date && b instanceof Date) return a.toDateString() === b.toDateString();
+    return a === b;
+  }
+
   return {
-    dayEta:       projectDate(dayRate,   remDay),
-    nightEta:     projectDate(nightRate, remNight),
-    dayRate,
-    nightRate,
-    confidence:   tier === 1 ? 'low' : tier === 2 ? 'fair' : 'good',
+    day: {
+      optimistic:  optDay,
+      likely:      likelyDay,
+      pessimistic: pestDay,
+      complete:    remDay   <= 0,
+      collapsed:   sameDateStr(optDay, pestDay),
+    },
+    night: {
+      optimistic:  optNight,
+      likely:      likelyNight,
+      pessimistic: pestNight,
+      complete:    remNight <= 0,
+      collapsed:   sameDateStr(optNight, pestNight),
+    },
+    confidence,
     sessionCount: n,
+    enoughDataForRange: true,
   };
 }
+
 
 // ---- History grouping helpers ----
 
@@ -236,40 +373,88 @@ function groupLabel(key, view) {
   return LONG[m - 1] + ' ' + y;
 }
 
+// ---- Collapsed header progress text ----
+
+function updateCollapsedProgress() {
+  const el = document.getElementById('collapsed-progress');
+  if (!el) return;
+  const { day, night } = getTotals();
+  const total      = day + night;
+  const totalH     = (total / 60).toFixed(1);
+  const overallPct = Math.min(100, Math.round((total / (DAY_TARGET_MINS + NIGHT_TARGET_MINS)) * 100));
+  el.innerHTML = `<span class="collapsed-pct">${overallPct}%</span> · ${totalH}h / 50h`;
+}
+
 // ---- Render: Dashboard ----
 
 function renderDashboard() {
   const { day, night } = getTotals();
-  const total = day + night;
-
-  const dayPct     = Math.min(100, (day   / DAY_TARGET_MINS)   * 100);
-  const nightPct   = Math.min(100, (night / NIGHT_TARGET_MINS) * 100);
+  const total      = day + night;
   const overallPct = Math.min(100, (total / (DAY_TARGET_MINS + NIGHT_TARGET_MINS)) * 100);
 
-  document.getElementById('day-logged').textContent    = fmtHours(day);
-  document.getElementById('day-remaining').textContent = fmtHours(Math.max(0, DAY_TARGET_MINS - day));
-  document.getElementById('day-pct').textContent       = Math.round(dayPct) + '%';
-
-  document.getElementById('night-logged').textContent    = fmtHours(night);
-  document.getElementById('night-remaining').textContent = fmtHours(Math.max(0, NIGHT_TARGET_MINS - night));
-  document.getElementById('night-pct').textContent       = Math.round(nightPct) + '%';
-
   document.getElementById('overall-pct').textContent = Math.round(overallPct) + '%';
+  updateCollapsedProgress();
 
-  const dayBar   = document.getElementById('day-bar');
-  const nightBar = document.getElementById('night-bar');
+  const fromDay   = previousDayMinutes;
+  const fromNight = previousNightMinutes;
+  previousDayMinutes   = day;
+  previousNightMinutes = night;
 
-  if (!barsAnimated) {
-    barsAnimated = true;
-    // Defer past first paint so the browser commits width:0% before animating
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      dayBar.style.width   = dayPct + '%';
-      nightBar.style.width = nightPct + '%';
-    }));
-  } else {
-    dayBar.style.width   = dayPct + '%';
-    nightBar.style.width = nightPct + '%';
+  const animId   = ++dashboardAnimId;
+  const start    = performance.now();
+  const DURATION = 1200;
+
+  function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+
+  function tick(now) {
+    if (animId !== dashboardAnimId) return; // a newer call has taken over
+
+    const raw = Math.min(1, (now - start) / DURATION);
+    const e   = easeOut(raw);
+
+    const curDay   = fromDay   + (day   - fromDay)   * e;
+    const curNight = fromNight + (night - fromNight) * e;
+
+    const dayPct   = Math.min(100, (curDay   / DAY_TARGET_MINS)   * 100);
+    const nightPct = Math.min(100, (curNight / NIGHT_TARGET_MINS) * 100);
+
+    document.getElementById('day-logged').textContent    = fmtHours(curDay);
+    document.getElementById('day-remaining').textContent = fmtHours(Math.max(0, DAY_TARGET_MINS   - curDay));
+    document.getElementById('day-pct').textContent       = Math.round(dayPct) + '%';
+
+    document.getElementById('night-logged').textContent    = fmtHours(curNight);
+    document.getElementById('night-remaining').textContent = fmtHours(Math.max(0, NIGHT_TARGET_MINS - curNight));
+    document.getElementById('night-pct').textContent       = Math.round(nightPct) + '%';
+
+    document.getElementById('day-bar').style.width   = dayPct + '%';
+    document.getElementById('night-bar').style.width = nightPct + '%';
+
+    if (raw < 1) requestAnimationFrame(tick);
   }
+
+  requestAnimationFrame(tick);
+}
+
+// ---- Render: Streak ----
+
+function renderStreak() {
+  const streak = calcStreak();
+  const el     = document.getElementById('streak-badge');
+
+  el.className = 'streak-badge';
+
+  if (streak === 0) {
+    el.innerHTML = 'No active streak &mdash; drive today!';
+    el.classList.add('streak-none');
+    return;
+  }
+
+  const flameClass = streak >= 14 ? 'streak-flame streak-flame-pulse' : 'streak-flame';
+  const flame      = `<span class="${flameClass}">🔥</span>`;
+  const label      = streak === 1 ? '1 day streak &mdash; keep it up!' : `${streak} day streak`;
+  el.innerHTML     = `${flame} ${label}`;
+
+  if (streak >= 7) el.classList.add('streak-hot');
 }
 
 // ---- Render: Milestone Badges ----
@@ -310,18 +495,7 @@ function renderETA() {
     return;
   }
 
-  const { dayEta, nightEta, dayRate, nightRate, confidence, sessionCount } = data;
-
-  function etaCell(eta) {
-    if (eta === 'achieved') return '<span class="eta-achieved">Goal reached! &#x1F389;</span>';
-    if (!eta)               return '<span class="eta-no-rate">Log another session to see an estimate</span>';
-    return fmtDateObj(eta);
-  }
-
-  function rateCell(ratePerDay) {
-    if (ratePerDay <= 0) return '';
-    return `<span class="eta-rate">${fmtHours(ratePerDay)}h/day</span>`;
-  }
+  const { confidence, sessionCount } = data;
 
   const CONF_LABELS = {
     low:  `Low confidence &middot; ${sessionCount} session${sessionCount === 1 ? '' : 's'} logged`,
@@ -329,21 +503,63 @@ function renderETA() {
     good: `Good confidence &middot; ${sessionCount} sessions logged`,
   };
 
-  const dayRow = `<div class="eta-row">` +
-    `<span class="eta-type day-type">Day</span>` +
-    `<span class="eta-date">${etaCell(dayEta)}</span>` +
-    rateCell(dayRate) +
-    `</div>`;
+  function etaDateStr(eta) {
+    if (!eta)           return '<span class="eta-no-rate">—</span>';
+    if (eta === 'past') return '<span class="eta-delayed">At current pace, goal may be delayed — drive more frequently!</span>';
+    return fmtDateObj(eta);
+  }
 
-  const nightRow = `<div class="eta-row">` +
-    `<span class="eta-type night-type">Night</span>` +
-    `<span class="eta-date">${etaCell(nightEta)}</span>` +
-    rateCell(nightRate) +
-    `</div>`;
+  function scenarioRow(dotClass, label, eta) {
+    return `<div class="eta-scenario">` +
+      `<span class="eta-dot ${dotClass}" aria-hidden="true"></span>` +
+      `<span class="eta-scenario-label">${label}</span>` +
+      `<span class="eta-scenario-date">${etaDateStr(eta)}</span>` +
+      `</div>`;
+  }
 
-  el.innerHTML = dayRow + nightRow +
+  function goalHTML(label, typeClass, goalData) {
+    if (goalData.complete) {
+      return `<div class="eta-goal">` +
+        `<span class="eta-type ${typeClass}">${label}</span>` +
+        `<span class="eta-achieved"><svg width="22" height="22" viewBox="0 0 22 22" style="vertical-align:middle;margin-right:6px" aria-hidden="true"><circle cx="11" cy="11" r="11" fill="#52b788"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Goal reached!</span>` +
+        `</div>`;
+    }
+
+    if (!data.enoughDataForRange) {
+      return `<div class="eta-goal">` +
+        `<span class="eta-type ${typeClass}">${label}</span>` +
+        `<div class="eta-scenarios">` +
+          scenarioRow('eta-dot-likely', 'Most likely', goalData.likely) +
+          `<p class="eta-range-note">Log more sessions to see best &amp; worst case estimates</p>` +
+        `</div>` +
+        `</div>`;
+    }
+
+    if (goalData.collapsed) {
+      return `<div class="eta-goal">` +
+        `<span class="eta-type ${typeClass}">${label}</span>` +
+        `<div class="eta-scenarios">` +
+          scenarioRow('eta-dot-likely', 'Most likely', goalData.likely) +
+          `<p class="eta-range-note">Consistent pace &mdash; keep it up!</p>` +
+        `</div>` +
+        `</div>`;
+    }
+
+    return `<div class="eta-goal">` +
+      `<span class="eta-type ${typeClass}">${label}</span>` +
+      `<div class="eta-scenarios">` +
+        scenarioRow('eta-dot-best',   'Best case',   goalData.optimistic) +
+        scenarioRow('eta-dot-likely', 'Most likely', goalData.likely) +
+        scenarioRow('eta-dot-worst',  'Worst case',  goalData.pessimistic) +
+      `</div>` +
+      `</div>`;
+  }
+
+  el.innerHTML =
+    goalHTML('Day', 'day-type', data.day) +
+    goalHTML('Night', 'night-type', data.night) +
     `<div class="eta-confidence">` +
-    `<span class="confidence-badge confidence-${confidence}">${CONF_LABELS[confidence]}</span>` +
+      `<span class="confidence-badge confidence-${confidence}">${CONF_LABELS[confidence]}</span>` +
     `</div>`;
 }
 
@@ -600,10 +816,345 @@ function renderSupervisorStats() {
     </div>`).join('');
 }
 
+function renderTip() {
+  document.getElementById('tip-text').textContent = DRIVING_TIPS[currentTipIndex];
+}
+
+function refreshTip() {
+  let next;
+  do { next = Math.floor(Math.random() * DRIVING_TIPS.length); } while (next === currentTipIndex);
+  currentTipIndex = next;
+  renderTip();
+  const btn = document.querySelector('.tip-refresh-btn');
+  if (btn) {
+    btn.classList.remove('tip-refresh-spinning');
+    void btn.offsetWidth; // force reflow so animation restarts if tapped rapidly
+    btn.classList.add('tip-refresh-spinning');
+    setTimeout(() => btn.classList.remove('tip-refresh-spinning'), 400);
+  }
+}
+
+// ---- Render: Confidence Bars + Drift Chart ----
+
+// Computes the weighted-4-week "most likely" completion for any session subset.
+// Returns { dayDays, nightDays } — days from today, 0 if achieved, null if unprojectible.
+function computeLikelyCompletion(sessSubset) {
+  if (!sessSubset.length) return null;
+
+  const totalDay   = sessSubset.reduce((s, x) => s + x.dayMinutes,   0);
+  const totalNight = sessSubset.reduce((s, x) => s + x.nightMinutes, 0);
+
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const todayMs = today.getTime();
+
+  const sorted = [...sessSubset].sort((a, b) => a.date.localeCompare(b.date));
+  function noon(str) { return new Date(str + 'T12:00:00').getTime(); }
+
+  const firstMs = noon(sorted[0].date);
+  const elapsed = Math.max(1, Math.round((todayMs - firstMs) / 86400000));
+  const simpleDay   = totalDay   / elapsed;
+  const simpleNight = totalNight / elapsed;
+
+  function wfwRate(type) {
+    let wSum = 0, wTotal = 0;
+    for (let w = 0; w < 4; w++) {
+      const weight  = 4 - w;
+      const endMs   = todayMs - w * 7 * 86400000;
+      const startMs = endMs   - 6 * 86400000;
+      let sum = 0;
+      for (const s of sorted) {
+        const ms = noon(s.date);
+        if (ms >= startMs && ms <= endMs) sum += type === 'day' ? s.dayMinutes : s.nightMinutes;
+      }
+      wSum += (sum / 7) * weight; wTotal += weight;
+    }
+    const r = wSum / wTotal;
+    return r > 0 ? r : (type === 'day' ? simpleDay : simpleNight);
+  }
+
+  const remDay   = Math.max(0, DAY_TARGET_MINS   - totalDay);
+  const remNight = Math.max(0, NIGHT_TARGET_MINS - totalNight);
+
+  function toDays(rate, remaining) {
+    if (remaining <= 0) return 0;
+    if (rate <= 0)      return null;
+    return Math.ceil(remaining / rate);
+  }
+
+  return {
+    dayDays:   toDays(wfwRate('day'),   remDay),
+    nightDays: toDays(wfwRate('night'), remNight),
+  };
+}
+
+function renderConfidenceBars() {
+  const el   = document.getElementById('eta-bars');
+  const data = calculateEstimatedCompletion();
+
+  if (!data || !data.enoughDataForRange) {
+    el.innerHTML = '<p class="eta-bars-placeholder">Log more sessions to see confidence and drift data</p>';
+    return;
+  }
+
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+
+  function daysFrom(d) {
+    if (!(d instanceof Date)) return 0;
+    return Math.max(0, Math.round((d.getTime() - today.getTime()) / 86400000));
+  }
+
+  function barHTML(typeClass, label, color, goalData) {
+    const header = `<div class="eta-bar-header">` +
+      `<span class="eta-bar-type-label ${typeClass}">${label}</span>`;
+
+    if (goalData.complete) {
+      return `<div class="eta-bar-section" style="--eta-bar-color:${color}">` +
+        header + `</div>` +
+        `<p class="eta-bar-complete"><svg width="22" height="22" viewBox="0 0 22 22" style="vertical-align:middle;margin-right:6px" aria-hidden="true"><circle cx="11" cy="11" r="11" fill="#52b788"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Goal reached &#x2014; no estimate needed</p>` +
+        `</div>`;
+    }
+
+    const bestDays   = daysFrom(goalData.optimistic);
+    const likelyDays = daysFrom(goalData.likely);
+    const worstDays  = daysFrom(goalData.pessimistic);
+
+    if (goalData.collapsed || bestDays === worstDays) {
+      return `<div class="eta-bar-section" style="--eta-bar-color:${color}">` +
+        header + `<span class="eta-bar-pct">100%</span></div>` +
+        `<div class="eta-bar-track">` +
+          `<div class="eta-bar-fill" style="width:100%"></div>` +
+          `<div class="eta-bar-dot" style="left:50%"></div>` +
+        `</div>` +
+        `<span class="eta-bar-sublabel">Perfect consistency!</span>` +
+        `</div>`;
+    }
+
+    // Fix 1: denominator is worstDays (distance from today to worst case).
+    // Example: gap=18d, worst=90d → (1 - 18/90)*100 = 80% (Tight estimate).
+    //          gap=18d, worst=21d → (1 - 18/21)*100 = 14% (Uncertain).
+    const gap      = worstDays - bestDays;
+    const confPct  = Math.round(Math.max(0, Math.min(100,
+      (1 - gap / worstDays) * 100)));
+    // Fill covers 0→bestDays on the 0→worstDays track.
+    const fillPct  = worstDays ? Math.round(bestDays   / worstDays * 100) : 100;
+    // Fix 2: dot sits at the likelyDays position on the same 0→worstDays scale,
+    // clamped so the 12px dot never overflows either edge of the track.
+    const rawDotPct = worstDays ? (likelyDays / worstDays * 100) : 50;
+    const dotPct   = Math.max(0, Math.min(100, rawDotPct));
+    const sublabel = confPct > 70 ? 'Tight estimate' : confPct >= 40 ? 'Moderate' : 'Uncertain';
+
+    return `<div class="eta-bar-section" style="--eta-bar-color:${color}">` +
+      header + `<span class="eta-bar-pct">${confPct}%</span></div>` +
+      `<div class="eta-bar-track">` +
+        `<div class="eta-bar-fill" style="width:${fillPct}%"></div>` +
+        `<div class="eta-bar-dot" style="left:clamp(6px,${dotPct.toFixed(1)}%,calc(100% - 6px))"></div>` +
+      `</div>` +
+      `<span class="eta-bar-sublabel">${sublabel}</span>` +
+      `</div>`;
+  }
+
+  el.innerHTML = `<div class="eta-bars-row">` +
+    barHTML('day-type',   'Day',   '#52b788', data.day) +
+    barHTML('night-type', 'Night', '#0d9498', data.night) +
+    `</div>`;
+}
+
+function renderDriftChart() {
+  const canvas      = document.getElementById('drift-chart');
+  const placeholder = document.getElementById('eta-drift-placeholder');
+  const section     = document.getElementById('eta-drift-section');
+  if (!canvas) return;
+
+  const n = sessions.length;
+
+  if (n < 3) {
+    canvas.style.display = 'none';
+    if (placeholder) placeholder.hidden = false;
+    return;
+  }
+
+  canvas.style.display = 'block';
+  if (placeholder) placeholder.hidden = true;
+
+  const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date));
+
+  // One data point per cumulative session subset
+  const pts = [];
+  for (let i = 1; i <= n; i++) {
+    const est = computeLikelyCompletion(sorted.slice(0, i));
+    pts.push(est || { dayDays: null, nightDays: null });
+  }
+
+  // Canvas sizing
+  const dpr = window.devicePixelRatio || 1;
+  const W   = canvas.offsetWidth || (section ? section.clientWidth : 0) || 300;
+  const H   = 120;
+  canvas.width        = W * dpr;
+  canvas.height       = H * dpr;
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const PAD_L = 42;
+  const PAD_R = 12;
+  const PAD_T = 20;
+  const PAD_B = 18;
+  const plotW = W - PAD_L - PAD_R;
+  const plotH = H - PAD_T  - PAD_B;
+
+  // Y range
+  const allDays = pts.flatMap(p => [p.dayDays, p.nightDays]).filter(v => v !== null);
+  const maxDays = allDays.length ? Math.max(...allDays) : 100;
+
+  function xPos(i) { // i = 0-based index
+    return PAD_L + (n > 1 ? (i / (n - 1)) * plotW : plotW / 2);
+  }
+
+  function yPos(days) {
+    if (days === null) return null;
+    return PAD_T + (1 - Math.max(0, Math.min(maxDays, days)) / maxDays) * plotH;
+  }
+
+  // Resolve CSS colour variables for the current theme
+  const cs        = getComputedStyle(document.documentElement);
+  const colLight  = (cs.getPropertyValue('--text-light') || '#52796f').trim();
+  const colBorder = (cs.getPropertyValue('--border')     || '#b7dfc4').trim();
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Y-axis gridlines + month labels
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const today  = new Date(); today.setHours(12, 0, 0, 0);
+
+  const rawStep    = maxDays / 4;
+  const tickStep   = Math.max(7, (Math.round(rawStep / 30) || 1) * 30);
+
+  ctx.font         = '10px system-ui,-apple-system,sans-serif';
+  ctx.textBaseline = 'middle';
+
+  for (let d = 0; d <= maxDays; d += tickStep) {
+    const y = yPos(d);
+    if (y === null) continue;
+    const labelDate = new Date(today.getTime() + d * 86400000);
+    const label     = d === 0 ? 'Now' : MONTHS[labelDate.getMonth()];
+
+    ctx.fillStyle  = colLight;
+    ctx.textAlign  = 'right';
+    ctx.fillText(label, PAD_L - 5, y);
+
+    ctx.beginPath();
+    ctx.strokeStyle = colBorder;
+    ctx.lineWidth   = 0.5;
+    ctx.setLineDash([]);
+    ctx.moveTo(PAD_L, y); ctx.lineTo(PAD_L + plotW, y);
+    ctx.stroke();
+  }
+
+  // Y=0 dashed line (goal-achieved threshold)
+  const y0 = yPos(0);
+  if (y0 !== null) {
+    ctx.beginPath();
+    ctx.strokeStyle = colLight;
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.moveTo(PAD_L, y0); ctx.lineTo(PAD_L + plotW, y0);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Data lines
+  function drawLine(color, key) {
+    ctx.beginPath();
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    ctx.setLineDash([]);
+    let started = false;
+    for (let i = 0; i < pts.length; i++) {
+      const x = xPos(i);
+      const y = yPos(pts[i][key]);
+      if (y === null) { started = false; continue; }
+      if (!started) { ctx.moveTo(x, y); started = true; }
+      else           { ctx.lineTo(x, y); }
+    }
+    ctx.stroke();
+  }
+
+  drawLine('#52b788', 'dayDays');
+  drawLine('#0d9498', 'nightDays');
+
+  // X-axis session-number labels — enforce 28px minimum gap to prevent overlap.
+  // Always show session 1 and session N; show every-5th only if it fits.
+  ctx.fillStyle    = colLight;
+  ctx.textBaseline = 'top';
+
+  const MIN_LABEL_GAP = 28;
+  const labelY        = H - PAD_B + 3;
+
+  // Candidate indices: first, every-5th, last
+  const candidates = new Set([0]);
+  for (let i = 0; i < n; i++) { if ((i + 1) % 5 === 0) candidates.add(i); }
+  candidates.add(n - 1);
+  const sortedCandidates = [...candidates].sort((a, b) => a - b);
+
+  const drawnX = []; // x-positions of labels already committed to canvas
+
+  for (let ci = 0; ci < sortedCandidates.length; ci++) {
+    const i      = sortedCandidates[ci];
+    const x      = xPos(i);
+    const isFirst = i === 0;
+    const isLast  = i === n - 1;
+
+    if (isFirst) {
+      ctx.textAlign = 'center';
+      ctx.fillText(String(i + 1), x, labelY);
+      drawnX.push(x);
+      continue;
+    }
+
+    if (isLast) {
+      // Always draw; right-align if the label would overflow the right canvas edge
+      const nearEdge = x + 10 > W - PAD_R;
+      ctx.textAlign  = nearEdge ? 'right' : 'center';
+      ctx.fillText(String(i + 1), nearEdge ? W - PAD_R : x, labelY);
+      ctx.textAlign  = 'center';
+      continue;
+    }
+
+    // Intermediate: skip if too close to the previous drawn label or to the last label
+    const tooCloseLeft  = drawnX.length > 0 && x - drawnX[drawnX.length - 1] < MIN_LABEL_GAP;
+    const tooCloseRight = xPos(n - 1) - x < MIN_LABEL_GAP;
+    if (tooCloseLeft || tooCloseRight) continue;
+
+    ctx.textAlign = 'center';
+    ctx.fillText(String(i + 1), x, labelY);
+    drawnX.push(x);
+  }
+
+  // Legend (top-right)
+  const LX = W - PAD_R;
+  const LY = 10;
+  ctx.font         = '10px system-ui,-apple-system,sans-serif';
+  ctx.textBaseline = 'middle';
+
+  ctx.strokeStyle = '#52b788'; ctx.lineWidth = 2; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(LX - 76, LY); ctx.lineTo(LX - 62, LY); ctx.stroke();
+  ctx.fillStyle = '#52b788'; ctx.textAlign = 'left';
+  ctx.fillText('Day', LX - 59, LY);
+
+  ctx.strokeStyle = '#0d9498';
+  ctx.beginPath(); ctx.moveTo(LX - 32, LY); ctx.lineTo(LX - 18, LY); ctx.stroke();
+  ctx.fillStyle = '#0d9498';
+  ctx.fillText('Night', LX - 15, LY);
+}
+
 function renderAll() {
   renderDashboard();
+  renderStreak();
   renderMilestoneBadges();
   renderETA();
+  renderConfidenceBars();
+  renderDriftChart();
   renderChart();
   renderHistory();
   renderSupervisorStats();
@@ -711,6 +1262,8 @@ function handleSubmit(e) {
 
   saveSessions();
   renderAll();
+  updateAppBadge();
+  checkMilestoneNotifications();
   resetForm();
 }
 
@@ -742,14 +1295,54 @@ function editSession(id) {
   document.getElementById('submit-btn').textContent      = 'Update Session';
   document.getElementById('cancel-edit-btn').style.display = '';
 
-  document.getElementById('session-form').scrollIntoView({ behavior: 'smooth' });
+  document.getElementById('log').scrollIntoView({ behavior: 'smooth' });
 }
 
 function deleteSession(id) {
-  if (!confirm('Delete this session? This cannot be undone.')) return;
+  if (!confirm('Delete this session?')) return;
+
+  // A toast is already showing — commit that delete before starting a new one
+  if (pendingDelete !== null) commitPendingDelete();
+
+  pendingDelete = sessions.find(s => s.id === id);
   sessions = sessions.filter(s => s.id !== id);
-  saveSessions();
   renderAll();
+  updateAppBadge();
+
+  showDeleteToast();
+  pendingDeleteTimer = setTimeout(commitPendingDelete, 5000);
+}
+
+function commitPendingDelete() {
+  if (pendingDelete === null) return;
+  saveSessions();
+  pendingDelete = null;
+  clearTimeout(pendingDeleteTimer);
+  pendingDeleteTimer = null;
+  hideDeleteToast();
+}
+
+function undoDelete() {
+  if (pendingDelete === null) return;
+  clearTimeout(pendingDeleteTimer);
+  pendingDeleteTimer = null;
+  sessions.push(pendingDelete);
+  pendingDelete = null;
+  renderAll();
+  updateAppBadge();
+  hideDeleteToast();
+}
+
+function showDeleteToast() {
+  const toast = document.getElementById('delete-toast');
+  toast.hidden = false;
+  requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('toast-visible')));
+}
+
+function hideDeleteToast() {
+  const toast = document.getElementById('delete-toast');
+  toast.classList.remove('toast-visible');
+  toast.addEventListener('transitionend', () => { toast.hidden = true; }, { once: true });
 }
 
 function cancelEdit() {
@@ -776,11 +1369,214 @@ function resetForm() {
   delete document.getElementById('day-mins').dataset.manualEdit;
 }
 
+// ---- Notifications ----
+
+// True background scheduled notifications require a push server and service worker push events.
+// This implementation fires notifications on page load as a best-effort alternative — they will
+// only trigger when the user opens the app. This is fine for a personal PWA with no backend.
+
+function showNotification(title, body, tag, actions) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.ready.then(registration => {
+    registration.showNotification(title, {
+      body,
+      tag,
+      icon:    'icons/icon-192x192.png',
+      badge:   'icons/icon-96x96.png',
+      actions,
+      vibrate: [200, 100, 200],
+    });
+  }).catch(() => {});
+}
+
+function initNotifications() {
+  if (!('Notification' in window)) return;
+
+  if (Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
+  const today = todayStr();
+  const hour  = new Date().getHours();
+  const hasSessionToday = sessions.some(s => s.date === today);
+
+  if (!hasSessionToday && hour >= 20 && localStorage.getItem('lastDailyReminder') !== today) {
+    showNotification('Drive Log 🚗', 'Did you drive today? Tap to log your session.', 'daily-reminder');
+    localStorage.setItem('lastDailyReminder', today);
+  }
+
+  const lastWeekly       = localStorage.getItem('lastWeeklySummary');
+  const todayMs          = new Date(today + 'T12:00:00').getTime();
+  const lastWeeklyMs     = lastWeekly ? new Date(lastWeekly + 'T12:00:00').getTime() : 0;
+  const daysSinceSummary = Math.floor((todayMs - lastWeeklyMs) / 86400000);
+
+  if (daysSinceSummary >= 7) {
+    const cutoff = new Date(today + 'T00:00:00');
+    cutoff.setDate(cutoff.getDate() - 6);
+
+    let weekMins = 0;
+    for (const s of sessions) {
+      if (new Date(s.date + 'T00:00:00') >= cutoff) weekMins += s.dayMinutes + s.nightMinutes;
+    }
+
+    const { day, night } = getTotals();
+    const remainingMins  = Math.max(0, (DAY_TARGET_MINS + NIGHT_TARGET_MINS) - (day + night));
+
+    showNotification(
+      'Drive Log — Weekly Summary 📊',
+      `This week: ${fmtDuration(weekMins)} logged. ${fmtDuration(remainingMins)} still remaining to your 50h goal!`,
+      'weekly-summary'
+    );
+    localStorage.setItem('lastWeeklySummary', today);
+  }
+}
+
+// Vibration API — Android only; iOS silently ignores navigator.vibrate
+function triggerHaptic(pattern) {
+  if (navigator.vibrate) navigator.vibrate(pattern);
+}
+
+// ---- Confetti ----
+
+const DAY_CONFETTI_COLORS   = ['#52b788', '#7fd4a8', '#d8f3dc', '#ffffff'];
+const NIGHT_CONFETTI_COLORS = ['#0d9498', '#38b6bb', '#7fd4a8', '#ffffff'];
+
+function launchConfetti(colors) {
+  const count = 80;
+  const particles = [];
+
+  for (let i = 0; i < count; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-particle';
+
+    const size     = 6 + Math.random() * 6;                       // 6–12px
+    const x        = Math.random() * 100;                          // % across screen
+    const duration = 1500 + Math.random() * 1500;                  // 1.5–3s
+    const drift    = (Math.random() - 0.5) * 200;                  // -100px to +100px
+    const rotation = Math.random() * 720 - 360;                    // -360 to +360deg
+    const delay    = Math.random() * 500;                          // 0–0.5s
+    const color    = colors[Math.floor(Math.random() * colors.length)];
+
+    el.style.cssText = [
+      `width:${size}px`,
+      `height:${size}px`,
+      `left:${x}vw`,
+      `background:${color}`,
+      `animation-duration:${duration}ms`,
+      `animation-delay:${delay}ms`,
+      `--drift:${drift}px`,
+      `--rotation:${rotation}deg`,
+    ].join(';');
+
+    document.body.appendChild(el);
+    particles.push(el);
+  }
+
+  setTimeout(() => particles.forEach(p => p.remove()), 4000);
+}
+
+function checkMilestoneNotifications() {
+  const { day, night } = getTotals();
+  const notified = JSON.parse(localStorage.getItem('notifiedMilestones') || '[]');
+  let changed = false;
+
+  for (const m of MILESTONE_NOTIFICATIONS) {
+    const value = m.type === 'day' ? day : night;
+    if (value >= m.threshold && !notified.includes(m.key)) {
+      showNotification('Drive Log', m.msg, 'milestone');
+      notified.push(m.key);
+      changed = true;
+      if (m.key === 'day-100') {
+        updateAppBadge();
+        triggerHaptic([100, 50, 100, 50, 300]);
+        launchConfetti(DAY_CONFETTI_COLORS);
+      } else if (m.key === 'night-100') {
+        updateAppBadge();
+        triggerHaptic([100, 50, 100, 50, 300]);
+        launchConfetti(NIGHT_CONFETTI_COLORS);
+      } else {
+        triggerHaptic([200, 100, 200]);
+      }
+    }
+  }
+
+  if (changed) localStorage.setItem('notifiedMilestones', JSON.stringify(notified));
+}
+
+// ---- Badging API ----
+
+// Shows progress toward the 50-hour driving goal as an app badge number (percentage complete).
+// Visually appears only on Android (Chrome) and desktop (Chrome/Edge) when installed as a PWA.
+// iOS Safari does not support the Badging API; the call fails silently there.
+// No user permission is required for badging.
+function updateAppBadge() {
+  const { day, night } = getTotals();
+  const percentage = Math.round((day + night) / (DAY_TARGET_MINS + NIGHT_TARGET_MINS) * 100);
+  if (!('setAppBadge' in navigator)) return;
+  if (percentage >= 100) {
+    navigator.clearAppBadge().catch(() => {});
+  } else {
+    navigator.setAppBadge(percentage).catch(() => {});
+  }
+}
+
+// ---- Header collapse on scroll ----
+
+function initHeaderCollapse() {
+  const header = document.getElementById('main-header');
+  const main   = document.querySelector('main');
+  const collapsedBar = header.querySelector('.hero-collapsed-bar');
+  const gearBtn      = document.getElementById('gear-btn');
+
+  // Measure the expanded header height and apply it as a fixed padding-top on main.
+  // This compensates for the fixed-position header so content never hides behind it,
+  // and stays constant so the page doesn't jump when the header collapses.
+  function applyPaddingTop() {
+    // Temporarily ensure expanded state is visible for measurement
+    const wasCollapsed = header.classList.contains('header-collapsed');
+    if (wasCollapsed) header.classList.remove('header-collapsed');
+    const h = header.offsetHeight;
+    if (wasCollapsed) header.classList.add('header-collapsed');
+    main.style.paddingTop = h + 'px';
+  }
+
+  applyPaddingTop();
+  window.addEventListener('resize', applyPaddingTop, { passive: true });
+
+  window.addEventListener('scroll', () => {
+    const shouldCollapse = window.scrollY > 60;
+    if (header.classList.contains('header-collapsed') === shouldCollapse) return;
+    header.classList.toggle('header-collapsed', shouldCollapse);
+    collapsedBar.setAttribute('aria-hidden', shouldCollapse ? 'false' : 'true');
+    if (gearBtn) gearBtn.tabIndex = shouldCollapse ? 0 : -1;
+  }, { passive: true });
+}
+
 // ---- Bootstrap ----
 
 loadSessions();
 initForm();
 renderAll();
+renderTip();
+updateAppBadge();
+setTimeout(initNotifications, 5000);
+initHeaderCollapse();
+
+// ---- PWA shortcut deep-link scroll ----
+
+setTimeout(() => {
+  const hash = window.location.hash;
+  if (hash === '#log') {
+    document.getElementById('log').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('session-date').focus();
+  } else if (hash === '#progress') {
+    document.getElementById('progress').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else if (hash === '#history') {
+    document.getElementById('history').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}, 300);
+
 window.addEventListener('resize', renderChart);
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderChart);
 
@@ -845,11 +1641,67 @@ document.getElementById('session-list').addEventListener('click', e => {
 
 // ---- Service Worker registration ----
 
+function showUpdateToast() {
+  const toast = document.getElementById('update-toast');
+  toast.hidden = false;
+  requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('toast-visible')));
+}
+
+function hideUpdateToast() {
+  const toast = document.getElementById('update-toast');
+  toast.classList.remove('toast-visible');
+  toast.addEventListener('transitionend', () => { toast.hidden = true; }, { once: true });
+}
+
+// Debugging only — call window.testUpdateToast() in the browser console to verify
+// the toast UI works without needing a real service worker update. Can be removed later.
+window.testUpdateToast = showUpdateToast;
+
 if ('serviceWorker' in navigator) {
+  // Reload when the new SW takes control — guarded so first-install doesn't trigger a reload
+  if (navigator.serviceWorker.controller) {
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      window.location.reload();
+    });
+  }
+
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+    navigator.serviceWorker.register('./service-worker.js')
+      .then(registration => {
+        // Already waiting from a previous background install (e.g. hard-refresh over a pending update)
+        if (registration.waiting && navigator.serviceWorker.controller) {
+          showUpdateToast();
+        }
+
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+
+          // Attach statechange immediately — before the worker can advance to installed
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              showUpdateToast();
+            }
+          });
+
+          // Guard against the (rare) case where the worker reached installed before we attached
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateToast();
+          }
+        });
+      })
+      .catch(() => {});
   });
 }
+
+document.getElementById('update-toast-btn').addEventListener('click', () => {
+  hideUpdateToast();
+  navigator.serviceWorker.ready.then(registration => {
+    if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+    // controllerchange listener (registered above) handles the reload
+  });
+});
+
+document.getElementById('dismiss-update-toast-btn').addEventListener('click', hideUpdateToast);
 
 // ---- Install banner ----
 
@@ -883,6 +1735,197 @@ window.addEventListener('appinstalled', () => {
   document.getElementById('install-banner').hidden = true;
   deferredInstallPrompt = null;
 });
+
+// ---- Print Log ----
+
+function printLog() {
+  const { day, night } = getTotals();
+  const total      = day + night;
+  const overallPct = Math.min(100, Math.round((total / (DAY_TARGET_MINS + NIGHT_TARGET_MINS)) * 100));
+  const eta        = calculateEstimatedCompletion();
+  const now        = new Date();
+  const dateStr    = fmtDateObj(now);
+  const datetimeStr = dateStr + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  function etaStr() {
+    if (!eta) return 'Not enough data';
+    const later = eta.dayEta === 'achieved' && eta.nightEta === 'achieved' ? 'achieved' :
+      [eta.dayEta, eta.nightEta]
+        .filter(d => d && d !== 'achieved')
+        .sort((a, b) => b - a)[0];
+    if (!later) return 'Goal achieved!';
+    if (later === 'achieved') return 'Goal achieved!';
+    return fmtDateObj(later);
+  }
+
+  const sorted = [...sessions].sort((a, b) =>
+    a.date !== b.date ? b.date.localeCompare(a.date) : b.startTime.localeCompare(a.startTime)
+  );
+
+  const supervisorStats = getSupervisorStats();
+
+  const sessionRows = sorted.map(s => `
+    <tr>
+      <td>${fmtDate(s.date)}</td>
+      <td>${fmtTime(s.startTime)}</td>
+      <td>${fmtTime(s.endTime)}</td>
+      <td>${fmtHours(s.dayMinutes)}h</td>
+      <td>${fmtHours(s.nightMinutes)}h</td>
+      <td>${s.supervisor || '—'}</td>
+      <td>${s.location  || '—'}</td>
+      <td>${s.weather}</td>
+    </tr>`).join('');
+
+  const supervisorRows = supervisorStats.map(s => `
+    <tr>
+      <td>${s.name}</td>
+      <td>${fmtHours(s.day)}h</td>
+      <td>${fmtHours(s.night)}h</td>
+      <td>${fmtHours(s.total)}h</td>
+    </tr>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Drive Log — Official Hours Summary</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Georgia, 'Times New Roman', serif; font-size: 12pt; color: #000; background: #fff; padding: 24pt; }
+    h1 { font-size: 18pt; margin-bottom: 4pt; }
+    .date { font-size: 11pt; color: #444; margin-bottom: 20pt; }
+    h2 { font-size: 13pt; margin: 20pt 0 8pt; border-bottom: 1px solid #000; padding-bottom: 4pt; }
+    .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10pt; margin-bottom: 4pt; }
+    .summary-item { border: 1px solid #ccc; padding: 8pt 10pt; }
+    .summary-label { font-size: 9pt; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
+    .summary-value { font-size: 15pt; font-weight: bold; margin-top: 2pt; }
+    table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+    th { background: #f0f0f0; border: 1px solid #aaa; padding: 5pt 7pt; text-align: left; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.03em; }
+    td { border: 1px solid #ccc; padding: 5pt 7pt; vertical-align: top; }
+    tr:nth-child(even) td { background: #fafafa; }
+    footer { margin-top: 24pt; padding-top: 8pt; border-top: 1px solid #ccc; font-size: 9pt; color: #666; }
+    @media print {
+      body { padding: 0; }
+      @page { margin: 18mm 14mm; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Drive Log &mdash; Official Hours Summary</h1>
+  <p class="date">${dateStr}</p>
+
+  <h2>Summary</h2>
+  <div class="summary-grid">
+    <div class="summary-item">
+      <div class="summary-label">Day Hours</div>
+      <div class="summary-value">${fmtHours(day)}h</div>
+      <div class="summary-label">of 40h goal (${Math.round((day / DAY_TARGET_MINS) * 100)}%)</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">Night Hours</div>
+      <div class="summary-value">${fmtHours(night)}h</div>
+      <div class="summary-label">of 10h goal (${Math.round((night / NIGHT_TARGET_MINS) * 100)}%)</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">Total Hours</div>
+      <div class="summary-value">${fmtHours(total)}h</div>
+      <div class="summary-label">of 50h goal (${overallPct}%)</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">Sessions Logged</div>
+      <div class="summary-value">${sessions.length}</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">Day Remaining</div>
+      <div class="summary-value">${fmtHours(Math.max(0, DAY_TARGET_MINS - day))}h</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">Est. Completion</div>
+      <div class="summary-value" style="font-size:11pt">${etaStr()}</div>
+    </div>
+  </div>
+
+  <h2>Session History (${sorted.length} sessions)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th><th>Start</th><th>End</th>
+        <th>Day hrs</th><th>Night hrs</th>
+        <th>Supervisor</th><th>Location</th><th>Weather</th>
+      </tr>
+    </thead>
+    <tbody>${sessionRows}</tbody>
+  </table>
+
+  <h2>Supervisor Summary</h2>
+  <table>
+    <thead>
+      <tr><th>Supervisor</th><th>Day hrs</th><th>Night hrs</th><th>Total hrs</th></tr>
+    </thead>
+    <tbody>${supervisorRows}</tbody>
+  </table>
+
+  <footer>Generated by Drive Log PWA &nbsp;&mdash;&nbsp; ${datetimeStr}</footer>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { alert('Please allow pop-ups to use Print Log.'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.addEventListener('load', () => win.print());
+}
+
+document.getElementById('print-btn').addEventListener('click', printLog);
+
+// ---- QR Export ----
+
+function showQRModal() {
+  const json       = JSON.stringify(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'));
+  const overlay    = document.getElementById('qr-modal-overlay');
+  const canvasWrap = document.getElementById('qr-canvas-wrap');
+  const tooLarge   = document.getElementById('qr-too-large');
+  const copyBtn    = document.getElementById('qr-copy-btn');
+
+  canvasWrap.innerHTML = '';
+  overlay.removeAttribute('hidden');
+
+  if (json.length > 2000) {
+    canvasWrap.hidden = true;
+    tooLarge.hidden   = false;
+    copyBtn.hidden    = true;
+  } else {
+    canvasWrap.hidden = false;
+    tooLarge.hidden   = true;
+    copyBtn.hidden    = false;
+    new QRCode(canvasWrap, {
+      text:         json,
+      width:        256,
+      height:       256,
+      colorDark:    '#000000',
+      colorLight:   '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M,
+    });
+  }
+}
+
+function closeQRModal() {
+  document.getElementById('qr-modal-overlay').setAttribute('hidden', '');
+}
+
+function copyQRJSON() {
+  const json = JSON.stringify(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'), null, 2);
+  navigator.clipboard.writeText(json).then(() => {
+    const btn  = document.getElementById('qr-copy-btn');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  }).catch(() => {
+    alert('Could not copy to clipboard — please use the Export button instead.');
+  });
+}
+
+document.getElementById('qr-btn')?.addEventListener('click', showQRModal);
 
 // ---- Export / Import ----
 

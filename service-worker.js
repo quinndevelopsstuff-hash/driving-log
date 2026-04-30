@@ -1,3 +1,4 @@
+// v1.2.7 — increment this comment on every deploy to guarantee the browser detects a byte change
 'use strict';
 
 const CACHE_NAME = 'drive-log-v1.1';
@@ -22,7 +23,12 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
   );
-  self.skipWaiting();
+  // Do NOT call skipWaiting() here — the app prompts the user before activating a new version
+});
+
+// Activate immediately when the app explicitly requests it (user clicked "Reload")
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 // Remove old caches on activate
@@ -35,6 +41,15 @@ self.addEventListener('activate', event => {
     )
   );
   self.clients.claim();
+});
+
+// Open the app to the right section when a notification is tapped
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const url = (event.action === 'daily-reminder' || event.notification.tag === 'daily-reminder')
+    ? 'index.html#log'
+    : 'index.html';
+  event.waitUntil(clients.openWindow(url));
 });
 
 // Cache-first, fall back to network

@@ -16,15 +16,34 @@
 </head>
 <body>
 
-  <header>
-    <div class="hero-inner">
-      <div class="hero-left">
-        <h1>Driving Hours</h1>
-        <p class="tagline">Learner&rsquo;s permit tracker &mdash; 50h goal</p>
+  <header id="main-header">
+    <div class="hero-expanded-wrap">
+      <div class="hero-inner">
+        <div class="hero-left">
+          <h1>Driving Hours</h1>
+          <p class="tagline">Learner&rsquo;s permit tracker &mdash; 50h goal</p>
+        </div>
+        <div class="hero-stat">
+          <span class="hero-pct" id="overall-pct">0%</span>
+          <span class="hero-pct-label">complete</span>
+        </div>
       </div>
-      <div class="hero-stat">
-        <span class="hero-pct" id="overall-pct">0%</span>
-        <span class="hero-pct-label">complete</span>
+      <div class="streak-bar">
+        <span id="streak-badge" class="streak-badge"></span>
+      </div>
+    </div>
+    <div class="hero-collapsed-bar" aria-hidden="true">
+      <span class="hero-collapsed-title">Drive Log</span>
+      <div class="hero-collapsed-right">
+        <span class="hero-collapsed-progress" id="collapsed-progress"></span>
+        <button class="gear-btn" id="gear-btn" aria-label="Settings" tabindex="-1"
+                onclick="document.querySelector('.data-actions').scrollIntoView({behavior:'smooth'})">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
       </div>
     </div>
   </header>
@@ -32,7 +51,7 @@
   <main>
 
     <!-- Progress Dashboard -->
-    <section class="card" id="dashboard">
+    <section class="card" id="progress">
 
       <div class="section-toggle" id="toggle-progress">
         <h2>Progress</h2>
@@ -99,6 +118,27 @@
       </div>
       <div class="section-body" id="body-estimated">
         <div id="eta-content"></div>
+        <div id="eta-bars"></div>
+        <div id="eta-drift-section">
+          <p class="eta-drift-title">Estimate drift — how your prediction has changed</p>
+          <canvas id="drift-chart"></canvas>
+          <p id="eta-drift-placeholder" class="eta-drift-placeholder" hidden>Log more sessions to see confidence and drift data</p>
+        </div>
+      </div>
+
+      <!-- Tip of the session -->
+      <div class="tip-card">
+        <span class="tip-label">Tip of the session</span>
+        <div class="tip-body">
+          <span class="tip-icon" aria-hidden="true">💡</span>
+          <p class="tip-text" id="tip-text"></p>
+          <button class="tip-refresh-btn" onclick="refreshTip()" aria-label="New tip" title="New tip">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block" aria-hidden="true">
+              <path d="M13.5 8A5.5 5.5 0 1 1 10 3.08" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              <polyline points="10,1 10,4 13,4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
     </section>
@@ -117,7 +157,7 @@
     </section>
 
     <!-- Session Logging Form -->
-    <section class="card" id="session-form">
+    <section class="card" id="log">
       <h2 id="form-title">Log Session</h2>
 
       <form id="log-form" novalidate>
@@ -190,7 +230,7 @@
     </section>
 
     <!-- Session History -->
-    <section class="card">
+    <section class="card" id="history">
       <div class="history-header">
         <div class="history-section-toggle" id="history-section-toggle">
           <h2>Session History</h2>
@@ -220,8 +260,17 @@
       </div>
     </section>
 
-    <!-- Export / Import -->
+    <!-- Export / Import / Print -->
     <div class="data-actions">
+      <button class="data-btn print-btn" id="print-btn">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M5 7V3h10v4" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="3" y="7" width="14" height="8" rx="1.5" stroke="#fff" stroke-width="1.75"/>
+          <path d="M5 11h10M5 14h6" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="15.5" cy="9.5" r="0.75" fill="#fff"/>
+        </svg>
+        Print
+      </button>
       <button class="data-btn export-btn" id="export-btn">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
           <path d="M10 13V3M10 13l-3-3M10 13l3-3" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
@@ -237,9 +286,39 @@
         Import
       </button>
       <input type="file" id="import-file-input" accept=".json" hidden>
+      <!--
+      <button class="data-btn qr-btn" id="qr-btn">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <rect x="2" y="2" width="6" height="6" rx="1" stroke="#fff" stroke-width="1.5" fill="none"/>
+          <rect x="3.5" y="3.5" width="3" height="3" rx="0.5" fill="#fff"/>
+          <rect x="12" y="2" width="6" height="6" rx="1" stroke="#fff" stroke-width="1.5" fill="none"/>
+          <rect x="13.5" y="3.5" width="3" height="3" rx="0.5" fill="#fff"/>
+          <rect x="2" y="12" width="6" height="6" rx="1" stroke="#fff" stroke-width="1.5" fill="none"/>
+          <rect x="3.5" y="13.5" width="3" height="3" rx="0.5" fill="#fff"/>
+          <rect x="12" y="12" width="2" height="2" rx="0.3" fill="#fff"/>
+          <rect x="15" y="12" width="2" height="2" rx="0.3" fill="#fff"/>
+          <rect x="12" y="15" width="2" height="2" rx="0.3" fill="#fff"/>
+          <rect x="15" y="15" width="2" height="2" rx="0.3" fill="#fff"/>
+        </svg>
+        QR
+      </button>
+      -->
     </div>
 
   </main>
+
+  <div id="delete-toast" hidden>
+    <span class="toast-msg">Session deleted</span>
+    <button class="toast-undo-btn" onclick="undoDelete()">Undo</button>
+  </div>
+
+  <div id="update-toast" hidden>
+    <span class="toast-msg">A new version is available!</span>
+    <div class="toast-actions">
+      <button class="toast-update-btn" id="update-toast-btn">Update Now</button>
+      <button class="toast-dismiss-btn" id="dismiss-update-toast-btn" aria-label="Dismiss">&#x2715;</button>
+    </div>
+  </div>
 
   <div id="install-banner" class="install-banner" hidden>
     <div class="install-banner-inner">
@@ -254,6 +333,23 @@
     </div>
   </div>
 
+  <!-- QR export modal -->
+  <div id="qr-modal-overlay" hidden onclick="if(event.target===this)closeQRModal()">
+    <div class="qr-modal-card">
+      <h3 class="qr-modal-title">Scan to Import</h3>
+      <p class="qr-modal-subtitle">Have another device scan this to import your session data</p>
+      <div id="qr-canvas-wrap" class="qr-canvas-wrap"></div>
+      <div id="qr-too-large" class="qr-too-large" hidden>
+        <p>Too many sessions for a QR code &mdash; use the <button class="qr-inline-export-btn" onclick="document.getElementById('export-btn').click();closeQRModal()">Export</button> button instead to save a JSON file.</p>
+      </div>
+      <div class="qr-modal-actions">
+        <button class="qr-copy-btn" id="qr-copy-btn" onclick="copyQRJSON()">Copy JSON</button>
+        <button class="qr-close-btn" onclick="closeQRModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
