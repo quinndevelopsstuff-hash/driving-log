@@ -1524,30 +1524,27 @@ function updateAppBadge() {
 // ---- Header collapse on scroll ----
 
 function initHeaderCollapse() {
-  const header = document.getElementById('main-header');
-  const main   = document.querySelector('main');
+  const header      = document.getElementById('main-header');
   const collapsedBar = header.querySelector('.hero-collapsed-bar');
 
-  // Measure the expanded header height and apply it as a fixed padding-top on main.
-  // This compensates for the fixed-position header so content never hides behind it,
-  // and stays constant so the page doesn't jump when the header collapses.
-  function applyPaddingTop() {
-    // Temporarily ensure expanded state is visible for measurement
-    const wasCollapsed = header.classList.contains('header-collapsed');
-    if (wasCollapsed) header.classList.remove('header-collapsed');
-    const h = header.offsetHeight;
-    if (wasCollapsed) header.classList.add('header-collapsed');
-    main.style.paddingTop = h + 'px';
-  }
+  // Lock the header's layout height to the expanded size once.
+  // Because the header is position:sticky, this height is what the browser
+  // reserves in the document flow — it never changes, so the page never jumps.
+  // The inner layers crossfade via opacity without affecting this outer box.
+  header.style.height = header.offsetHeight + 'px';
 
-  applyPaddingTop();
-  window.addEventListener('resize', applyPaddingTop, { passive: true });
-
+  let ticking = false;
   window.addEventListener('scroll', () => {
-    const shouldCollapse = window.scrollY > 60;
-    if (header.classList.contains('header-collapsed') === shouldCollapse) return;
-    header.classList.toggle('header-collapsed', shouldCollapse);
-    collapsedBar.setAttribute('aria-hidden', shouldCollapse ? 'false' : 'true');
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      const shouldCollapse = window.scrollY > 60;
+      if (header.classList.contains('header-collapsed') !== shouldCollapse) {
+        header.classList.toggle('header-collapsed', shouldCollapse);
+        collapsedBar.setAttribute('aria-hidden', shouldCollapse ? 'false' : 'true');
+      }
+      ticking = false;
+    });
   }, { passive: true });
 }
 

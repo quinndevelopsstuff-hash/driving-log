@@ -130,30 +130,33 @@ body {
 header {
   background: var(--header-bg);
   color: var(--white);
-  position: fixed;
+  position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
   z-index: 100;
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.28);
   overflow: hidden;
+  /* height is locked to expanded size by JS — never changes, so page never jumps */
 }
 
-/* Expanded hero content — fades out on scroll */
+/* Expanded hero content — fades out on scroll via opacity only; no height change */
 .hero-expanded-wrap {
-  overflow: hidden;
-  max-height: 300px;
   opacity: 1;
-  transition: max-height 0.25s ease-out, opacity 0.25s ease-out, padding 0.25s ease-out;
+  pointer-events: auto;
+  transition: opacity 0.25s ease-out;
 }
 
 header.header-collapsed .hero-expanded-wrap {
-  max-height: 0;
   opacity: 0;
+  pointer-events: none;
 }
 
-/* Collapsed header bar — fades in on scroll */
+/* Collapsed header bar — absolutely overlays the header, fades in on scroll */
 .hero-collapsed-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   max-width: 600px;
   margin: 0 auto;
   padding: 0 var(--gap);
@@ -161,15 +164,14 @@ header.header-collapsed .hero-expanded-wrap {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  max-height: 0;
   opacity: 0;
-  overflow: hidden;
-  transition: max-height 0.25s ease-out, opacity 0.25s ease-out;
+  pointer-events: none;
+  transition: opacity 0.25s ease-out;
 }
 
 header.header-collapsed .hero-collapsed-bar {
-  max-height: 56px;
   opacity: 1;
+  pointer-events: auto;
 }
 
 .hero-collapsed-title {
@@ -361,7 +363,7 @@ header .tagline {
 main {
   max-width: 600px;
   margin: 0 auto;
-  padding: 128px var(--gap) var(--gap); /* top updated by JS to match expanded header height */
+  padding: var(--gap);
   display: flex;
   flex-direction: column;
   gap: var(--gap);
@@ -1144,7 +1146,7 @@ input::placeholder { color: var(--placeholder); }
   .hero-pct   { font-size: 2.4rem; }
 
   main {
-    padding: 128px 16px 24px; /* top updated by JS; keep fallback consistent */
+    padding: 24px 16px;
     gap: 20px;
   }
 
