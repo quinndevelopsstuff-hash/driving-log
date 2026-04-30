@@ -179,13 +179,6 @@ header.header-collapsed .hero-collapsed-bar {
   white-space: nowrap;
 }
 
-.hero-collapsed-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
 .hero-collapsed-progress {
   font-size: 0.78rem;
   color: var(--white);
@@ -197,25 +190,6 @@ header.header-collapsed .hero-collapsed-bar {
   font-weight: 700;
 }
 
-/* Gear / settings button (visible in collapsed header) */
-.gear-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  color: var(--white);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background 0.15s;
-}
-
-.gear-btn:hover { background: rgba(255, 255, 255, 0.22); }
-.gear-btn:active { transform: scale(0.94); }
 
 .hero-inner {
   max-width: 600px;

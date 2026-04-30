@@ -1527,7 +1527,6 @@ function initHeaderCollapse() {
   const header = document.getElementById('main-header');
   const main   = document.querySelector('main');
   const collapsedBar = header.querySelector('.hero-collapsed-bar');
-  const gearBtn      = document.getElementById('gear-btn');
 
   // Measure the expanded header height and apply it as a fixed padding-top on main.
   // This compensates for the fixed-position header so content never hides behind it,
@@ -1549,7 +1548,6 @@ function initHeaderCollapse() {
     if (header.classList.contains('header-collapsed') === shouldCollapse) return;
     header.classList.toggle('header-collapsed', shouldCollapse);
     collapsedBar.setAttribute('aria-hidden', shouldCollapse ? 'false' : 'true');
-    if (gearBtn) gearBtn.tabIndex = shouldCollapse ? 0 : -1;
   }, { passive: true });
 }
 
