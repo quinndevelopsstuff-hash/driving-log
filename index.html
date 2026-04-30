@@ -16,20 +16,36 @@
 </head>
 <body>
 
-  <header>
-    <div class="hero-inner">
-      <div class="hero-left">
-        <h1>Driving Hours</h1>
-        <p class="tagline">Learner&rsquo;s permit tracker &mdash; 50h goal</p>
+  <header id="main-header">
+    <div class="hero-expanded-wrap">
+      <div class="hero-inner">
+        <div class="hero-left">
+          <h1>Driving Hours</h1>
+          <p class="tagline">Learner&rsquo;s permit tracker &mdash; 50h goal</p>
+        </div>
+        <div class="hero-stat">
+          <span class="hero-pct" id="overall-pct">0%</span>
+          <span class="hero-pct-label">complete</span>
+        </div>
       </div>
-      <div class="hero-stat">
-        <span class="hero-pct" id="overall-pct">0%</span>
-        <span class="hero-pct-label">complete</span>
+      <div class="streak-bar">
+        <span id="streak-badge" class="streak-badge"></span>
       </div>
     </div>
-  <div class="streak-bar">
-    <span id="streak-badge" class="streak-badge"></span>
-  </div>
+    <div class="hero-collapsed-bar" aria-hidden="true">
+      <span class="hero-collapsed-title">Drive Log</span>
+      <div class="hero-collapsed-right">
+        <span class="hero-collapsed-progress" id="collapsed-progress"></span>
+        <button class="gear-btn" id="gear-btn" aria-label="Settings" tabindex="-1"
+                onclick="document.querySelector('.data-actions').scrollIntoView({behavior:'smooth'})">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
   </header>
 
   <main>
@@ -117,9 +133,9 @@
           <span class="tip-icon" aria-hidden="true">💡</span>
           <p class="tip-text" id="tip-text"></p>
           <button class="tip-refresh-btn" onclick="refreshTip()" aria-label="New tip" title="New tip">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M13.5 2.5A6.5 6.5 0 1 1 2 8.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
-              <path d="M2 5.5V8.5H5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block" aria-hidden="true">
+              <path d="M13.5 8A5.5 5.5 0 1 1 10 3.08" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              <polyline points="10,1 10,4 13,4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </button>
         </div>
