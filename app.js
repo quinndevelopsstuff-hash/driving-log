@@ -1524,24 +1524,21 @@ function updateAppBadge() {
 // ---- Header collapse on scroll ----
 
 function initHeaderCollapse() {
-  const header      = document.getElementById('main-header');
-  const collapsedBar = header.querySelector('.hero-collapsed-bar');
+  const heroExpanded = document.getElementById('hero-expanded');
 
-  // Lock the header's layout height to the expanded size once.
-  // Because the header is position:sticky, this height is what the browser
-  // reserves in the document flow — it never changes, so the page never jumps.
-  // The inner layers crossfade via opacity without affecting this outer box.
-  header.style.height = header.offsetHeight + 'px';
-
+  // The fixed header is always 56px — body has permanent padding-top: 56px to match.
+  // The expanded hero section lives in the normal scroll flow below the header.
+  // Toggling .collapsed on it collapses it via CSS max-height/opacity transitions
+  // so the cards below slide up naturally with no layout jump anywhere.
   let ticking = false;
   window.addEventListener('scroll', () => {
     if (ticking) return;
     ticking = true;
     requestAnimationFrame(() => {
       const shouldCollapse = window.scrollY > 60;
-      if (header.classList.contains('header-collapsed') !== shouldCollapse) {
-        header.classList.toggle('header-collapsed', shouldCollapse);
-        collapsedBar.setAttribute('aria-hidden', shouldCollapse ? 'false' : 'true');
+      if (heroExpanded.classList.contains('collapsed') !== shouldCollapse) {
+        heroExpanded.classList.toggle('collapsed', shouldCollapse);
+        heroExpanded.setAttribute('aria-hidden', shouldCollapse ? 'true' : 'false');
       }
       ticking = false;
     });
