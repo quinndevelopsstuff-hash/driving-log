@@ -130,11 +130,92 @@ body {
 header {
   background: var(--header-bg);
   color: var(--white);
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 100;
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
 }
+
+/* Expanded hero content — fades out on scroll */
+.hero-expanded-wrap {
+  overflow: hidden;
+  max-height: 300px;
+  opacity: 1;
+  transition: max-height 0.25s ease-out, opacity 0.25s ease-out, padding 0.25s ease-out;
+}
+
+header.header-collapsed .hero-expanded-wrap {
+  max-height: 0;
+  opacity: 0;
+}
+
+/* Collapsed header bar — fades in on scroll */
+.hero-collapsed-bar {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 0 var(--gap);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease-out, opacity 0.25s ease-out;
+}
+
+header.header-collapsed .hero-collapsed-bar {
+  max-height: 56px;
+  opacity: 1;
+}
+
+.hero-collapsed-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--white);
+  white-space: nowrap;
+}
+
+.hero-collapsed-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.hero-collapsed-progress {
+  font-size: 0.78rem;
+  color: var(--white);
+  white-space: nowrap;
+}
+
+.collapsed-pct {
+  color: #7fd4a8;
+  font-weight: 700;
+}
+
+/* Gear / settings button (visible in collapsed header) */
+.gear-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.gear-btn:hover { background: rgba(255, 255, 255, 0.22); }
+.gear-btn:active { transform: scale(0.94); }
 
 .hero-inner {
   max-width: 600px;
@@ -270,30 +351,43 @@ header .tagline {
 
 .tip-refresh-btn {
   flex-shrink: 0;
-  background: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #d8f3dc;
   border: none;
   cursor: pointer;
-  padding: 2px 0 0 4px;
+  padding: 0;
   color: #2d6a4f;
-  opacity: 0.65;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: opacity 0.15s;
-  line-height: 1;
 }
 
-.tip-refresh-btn:hover { opacity: 1; }
+.tip-refresh-btn:hover { opacity: 0.8; }
+
+@keyframes tip-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.tip-refresh-spinning svg {
+  animation: tip-spin 400ms ease-out;
+}
 
 @media (prefers-color-scheme: dark) {
-  .tip-card      { background: #1e3a2a; }
-  .tip-label     { color: #52b788; }
-  .tip-text      { color: #c8e6d4; }
-  .tip-refresh-btn { color: #52b788; }
+  .tip-card         { background: #1e3a2a; }
+  .tip-label        { color: #52b788; }
+  .tip-text         { color: #c8e6d4; }
+  .tip-refresh-btn  { background: #1e3a2a; color: #52b788; }
 }
 
 /* ---- Main layout ---- */
 main {
   max-width: 600px;
   margin: 0 auto;
-  padding: var(--gap);
+  padding: 128px var(--gap) var(--gap); /* top updated by JS to match expanded header height */
   display: flex;
   flex-direction: column;
   gap: var(--gap);
@@ -1076,7 +1170,7 @@ input::placeholder { color: var(--placeholder); }
   .hero-pct   { font-size: 2.4rem; }
 
   main {
-    padding: 24px 16px;
+    padding: 128px 16px 24px; /* top updated by JS; keep fallback consistent */
     gap: 20px;
   }
 

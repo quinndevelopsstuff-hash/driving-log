@@ -373,6 +373,18 @@ function groupLabel(key, view) {
   return LONG[m - 1] + ' ' + y;
 }
 
+// ---- Collapsed header progress text ----
+
+function updateCollapsedProgress() {
+  const el = document.getElementById('collapsed-progress');
+  if (!el) return;
+  const { day, night } = getTotals();
+  const total      = day + night;
+  const totalH     = (total / 60).toFixed(1);
+  const overallPct = Math.min(100, Math.round((total / (DAY_TARGET_MINS + NIGHT_TARGET_MINS)) * 100));
+  el.innerHTML = `<span class="collapsed-pct">${overallPct}%</span> · ${totalH}h / 50h`;
+}
+
 // ---- Render: Dashboard ----
 
 function renderDashboard() {
@@ -381,6 +393,7 @@ function renderDashboard() {
   const overallPct = Math.min(100, (total / (DAY_TARGET_MINS + NIGHT_TARGET_MINS)) * 100);
 
   document.getElementById('overall-pct').textContent = Math.round(overallPct) + '%';
+  updateCollapsedProgress();
 
   const fromDay   = previousDayMinutes;
   const fromNight = previousNightMinutes;
@@ -812,6 +825,13 @@ function refreshTip() {
   do { next = Math.floor(Math.random() * DRIVING_TIPS.length); } while (next === currentTipIndex);
   currentTipIndex = next;
   renderTip();
+  const btn = document.querySelector('.tip-refresh-btn');
+  if (btn) {
+    btn.classList.remove('tip-refresh-spinning');
+    void btn.offsetWidth; // force reflow so animation restarts if tapped rapidly
+    btn.classList.add('tip-refresh-spinning');
+    setTimeout(() => btn.classList.remove('tip-refresh-spinning'), 400);
+  }
 }
 
 // ---- Render: Confidence Bars + Drift Chart ----
@@ -1501,6 +1521,38 @@ function updateAppBadge() {
   }
 }
 
+// ---- Header collapse on scroll ----
+
+function initHeaderCollapse() {
+  const header = document.getElementById('main-header');
+  const main   = document.querySelector('main');
+  const collapsedBar = header.querySelector('.hero-collapsed-bar');
+  const gearBtn      = document.getElementById('gear-btn');
+
+  // Measure the expanded header height and apply it as a fixed padding-top on main.
+  // This compensates for the fixed-position header so content never hides behind it,
+  // and stays constant so the page doesn't jump when the header collapses.
+  function applyPaddingTop() {
+    // Temporarily ensure expanded state is visible for measurement
+    const wasCollapsed = header.classList.contains('header-collapsed');
+    if (wasCollapsed) header.classList.remove('header-collapsed');
+    const h = header.offsetHeight;
+    if (wasCollapsed) header.classList.add('header-collapsed');
+    main.style.paddingTop = h + 'px';
+  }
+
+  applyPaddingTop();
+  window.addEventListener('resize', applyPaddingTop, { passive: true });
+
+  window.addEventListener('scroll', () => {
+    const shouldCollapse = window.scrollY > 60;
+    if (header.classList.contains('header-collapsed') === shouldCollapse) return;
+    header.classList.toggle('header-collapsed', shouldCollapse);
+    collapsedBar.setAttribute('aria-hidden', shouldCollapse ? 'false' : 'true');
+    if (gearBtn) gearBtn.tabIndex = shouldCollapse ? 0 : -1;
+  }, { passive: true });
+}
+
 // ---- Bootstrap ----
 
 loadSessions();
@@ -1509,6 +1561,7 @@ renderAll();
 renderTip();
 updateAppBadge();
 setTimeout(initNotifications, 5000);
+initHeaderCollapse();
 
 // ---- PWA shortcut deep-link scroll ----
 
